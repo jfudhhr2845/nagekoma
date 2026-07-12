@@ -194,6 +194,7 @@ let armed=false;               // センサー: おさえ中のみ投げ受付
 let dragOn=false,dragSX=0,dragSY=0,dragPow=0,dragAng=0;
 let spikeCap=null,throwCd=0;
 let events=[];                 // この投擲の出来事ログ
+let lastThrowEvents=[];         // ラウンド最後の1投の出来事（確定演出→結果へ引き継ぐ）
 let marker,arrowG,arrowShaft,arrowHead;
 let camBlend=0;
 let tiltX=0,tiltXsm=0,rotBeta=0,rotPeak=0,baseGX=0,baseGZ=0,lastG={x:0,y:0,z:9.8};
@@ -208,7 +209,6 @@ function vibrate(ms){if(navigator.vibrate)try{navigator.vibrate(ms);}catch(e){}}
 
 /* ===== 幾何ヘルパ ===== */
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
-const clampInt=(v,a,b)=>Math.max(a,Math.min(b,v));
 const lerp=(a,b,t)=>a+(b-a)*t;
 
 /* ===== 共有ジオメトリ ===== */
@@ -325,7 +325,7 @@ function buildBoard(){
 function startTileFor(i){
   const centerT=tiles.find(t=>t.type==='start')||tiles[0];
   const[oc,or_]=START_OFFSETS[i];
-  const col=clampInt(centerT.col+oc,0,GRID.cols-1),row=clampInt(centerT.row+or_,0,GRID.rows-1);
+  const col=clamp(centerT.col+oc,0,GRID.cols-1),row=clamp(centerT.row+or_,0,GRID.rows-1);
   return tiles[row*GRID.cols+col];
 }
 
@@ -547,8 +547,7 @@ function bindInput(){
     const dx=e.clientX-dragSX,dy=e.clientY-dragSY;
     const d=Math.hypot(dx,dy);
     dragPow=clamp(d/TUNE.dragMax,0,1);
-    // 引きの逆方向へ発射（画面x→ワールドx、画面y→ワールドz）
-    dragAng=Math.atan2(-dy,-dx);
+    dragAng=fingerLaunchAngle(dx,dy);   // カメラ基準で発射方向を決める
     el('powerFill').style.width=(dragPow*100)+'%';
   });
   window.addEventListener('pointerup',e=>{
@@ -564,6 +563,17 @@ function bindInput(){
 
 /* ===== ねらいの基準角（盤の中央を向く） ===== */
 function aimBase(p){return Math.atan2(-p.z,-p.x);}
+/* 指モードの発射角: 画面ドラッグ(逆向き=パチンコ)をカメラ基準でワールド方向へ変換する。
+   狙いカメラはコマの背後からaimBase方向を向いて固定なので、画面奥(=引き下げ)がF方向、
+   画面右がR方向に対応する（F=カメラ前方の地面投影, R=カメラ右）。これでカメラと発射方向が一致する */
+function fingerLaunchAngle(dx,dy){
+  const a=aimBase(cur());
+  const fx=Math.cos(a),fz=Math.sin(a);          // F: カメラ前方（盤中央向き）
+  // 引きの逆向きに飛ばす: 画面(-dx,-dy) を (右R, 前F) で合成。R=(-fz,fx)
+  const lx=dx*fz+dy*fx;
+  const lz=-dx*fx+dy*fz;
+  return Math.atan2(lz,lx);
+}
 
 /* ===== 投擲 ===== */
 function doThrow(power,ang){
@@ -599,6 +609,13 @@ function doThrow(power,ang){
 function land(p){
   p.y=0;
   p.vx*=FLIGHT_KEEP;p.vz*=FLIGHT_KEEP;
+  // 山なり中はフェンスを無視して飛ぶので、盤外に着地したら盤内へクランプして
+  // はみ出し分は壁で跳ね返す（次フレームで一瞬ワープするのを防ぐ）
+  const hx=GRID.cols*GRID.cell/2-BOARD.pieceR,hz=GRID.rows*GRID.cell/2-BOARD.pieceR;
+  if(p.x>hx){p.x=hx;if(p.vx>0)p.vx=-p.vx*TUNE.wallRest;}
+  else if(p.x<-hx){p.x=-hx;if(p.vx<0)p.vx=-p.vx*TUNE.wallRest;}
+  if(p.z>hz){p.z=hz;if(p.vz>0)p.vz=-p.vz*TUNE.wallRest;}
+  else if(p.z<-hz){p.z=-hz;if(p.vz<0)p.vz=-p.vz*TUNE.wallRest;}
   p.state='roll';
   emit(p.x,0.3,p.z,0xd8c9a0,8,3,2,0.5);
   beep(300,0.06);
@@ -722,6 +739,9 @@ function onThrowSettled(){
   const msg=events.length?events.join(' '):'ころりん…';
   if(roundThrows>=pieces.length){
     roundThrows=0;
+    // 最後の1投はトーストを経由せず確定演出へ直行するため、この投擲の出来事は
+    // ラウンド結果の先頭に引き継いで表示する（はじきとばし等の握りつぶし防止）
+    lastThrowEvents=events.slice();
     startResolve();
   }else{
     el('turnB').classList.add('hidden');
@@ -768,7 +788,10 @@ function showRoundResult(){
     return msg;
   });
   el('resultT').textContent='ラウンド確定！';
-  el('resultS').innerHTML=lines.join('<br>');
+  // 最後の1投の出来事（はじきとばし等）を先頭に添えてから各社の着地結果を並べる
+  const head=lastThrowEvents.length?['💥 '+lastThrowEvents.join(' ')]:[];
+  lastThrowEvents=[];
+  el('resultS').innerHTML=head.concat(lines).join('<br>');
   el('resultTap').classList.remove('hidden');
   el('resultBtns').classList.add('hidden');
   el('resultPop').style.display='flex';
@@ -788,6 +811,14 @@ function startBuyDecisions(){
   showBuyPrompt();
 }
 function showBuyPrompt(){
+  // 同じ空きマスに複数社が止まっていると行列に重複して入る。先に誰かが買っていたら、
+  // または本人の所持金が足りなくなっていたらスキップして次へ（二重購入で代金だけ消える事故を防ぐ）
+  while(buyIdx<buyQueue.length){
+    const q=buyQueue[buyIdx];
+    if(q.tile.owner==null&&q.piece.cash>=q.tile.price)break;
+    buyIdx++;
+  }
+  if(buyIdx>=buyQueue.length){el('resultPop').style.display='none';proceedAfterRound();return;}
   const {piece,tile}=buyQueue[buyIdx];
   el('resultT').textContent=piece.ch.name+'：購入する？';
   el('resultS').innerHTML=TYPE_NAME[tile.type]+'　価格'+tile.price+'万<br>所持金'+piece.cash+'万';
@@ -804,8 +835,7 @@ function answerBuy(yes){
     beep(880,0.1,'triangle');vibrate(40);
   }else beep(300,0.06);
   buyIdx++;
-  if(buyIdx>=buyQueue.length){el('resultPop').style.display='none';proceedAfterRound();}
-  else showBuyPrompt();
+  showBuyPrompt();   // 終端・スキップ判定はshowBuyPrompt側に集約
 }
 function proceedAfterRound(){
   if(roundNo>=MAX_ROUNDS){showGameEnd();return;}
@@ -897,6 +927,7 @@ function loop(){
   const now=performance.now();
   let dt=Math.min((now-prevT)/1000,0.033);prevT=now;
   if(throwCd>0)throwCd-=dt;
+  if(rotPeak>0)rotPeak=Math.max(0,rotPeak-dt*200);   // デバッグ表示: 全体最大でなく直近のピークを見せる
 
   // センサーの遅延ピーク確定→投擲発動
   if(spikeCap&&now-spikeCap.t>130&&phase==='aiming'){
@@ -956,7 +987,8 @@ function loop(){
         aimAngleNow=aimBase(p)+clamp(tiltXsm/TUNE.tiltFull,-1,1)*(TUNE.aimRange*Math.PI/180);
         setArrow(p,aimAngleNow,3.2,armed);
       }else if(dragOn&&dragPow>0.05){
-        aimAngleNow=dragAng;
+        // 指モードのカメラはaimBase向きに固定（aimAngleNowを設定しない）。基準を安定させ、
+        // 発射方向fingerLaunchAngleと一致させる。矢印だけ実際の発射方向dragAngを指す
         setArrow(p,dragAng,1+dragPow*4.5,dragPow>0.8);
       }else arrowG.visible=false;
     }else arrowG.visible=false;
