@@ -26,6 +26,11 @@
   #legend .lnum{font-size:22px;font-weight:900;min-width:26px;text-align:center;color:#3a2f22}
   #legend .lnum.pending{color:#b9aa90;font-size:15px}
   #legend .lnum.cash{font-size:12px;color:#2e6b45}
+  #legend .lrow{flex-wrap:wrap}
+  #legend .ldest{display:block;width:100%;font-size:10px;font-weight:900;padding-left:19px;line-height:1.3;min-height:13px}
+  #banner{position:fixed;bottom:64px;left:50%;transform:translateX(-50%);z-index:7;pointer-events:none;background:rgba(255,252,242,.96);border:3px solid var(--line);border-radius:16px;padding:10px 22px;text-align:center;box-shadow:0 8px 24px rgba(0,0,0,.35);max-width:92vw;animation:popin .22s ease-out}
+  #bannerT{font-size:16px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #bannerB{font-size:22px;font-weight:900;margin-top:2px}
   #hint{bottom:118px;left:50%;transform:translateX(-50%);font-size:13px;font-weight:900;color:#fff;background:rgba(30,40,32,.75);border-radius:999px;padding:7px 18px;white-space:nowrap}
   #throwBtn{position:fixed;bottom:26px;left:50%;transform:translateX(-50%);z-index:7;pointer-events:auto;cursor:pointer;font-family:inherit;font-size:22px;font-weight:900;color:#fff;background:linear-gradient(180deg,#e8747c,#c74850);border:none;border-radius:999px;padding:16px 46px;box-shadow:0 10px 24px rgba(0,0,0,.4);display:none}
   #throwBtn:active{transform:translate(-50%,2px)}
@@ -65,6 +70,7 @@
 <div id="legend" class="hud hidden"></div>
 <div id="turnB" class="hud hidden"><div id="turnName">-</div><div id="turnSub">-</div></div>
 <div id="hint" class="hud hidden">-</div>
+<div id="banner" class="hidden"><div id="bannerT">-</div><div id="bannerB">-</div></div>
 <div id="powerWrap" class="hud"><div id="powerFill"></div></div>
 <button id="throwBtn">🎲 投げる！</button>
 <button id="dbgBtn" class="hidden">⚙</button>
@@ -163,7 +169,7 @@ const MONTHS=['4月','5月','6月','7月','8月','9月','10月','11月','12月',
 const START_CASH=1000;   // 初期現金(万)
 const RENT_RATE=0.1;     // 使用料=物件価格の10%
 const YIELD_RATE=0.18;   // 四半期決算の収益率(物件価格比)
-const HOP_T=0.22;        // 1マス移動の秒数
+const HOP_T=0.34;        // 1マス移動の秒数（ゆっくりめ。タップで早送り可）
 
 /* ===== イベント50種（fx=効果タイプ, v=数値。バランスはここを直すだけ） ===== */
 const EVENTS=[
@@ -325,7 +331,8 @@ function buildLegend(){
   box.innerHTML=CHARS.map((ch,i)=>
     '<div class="lrow" id="lrow'+i+'"><span class="dot" style="background:#'+ch.color.toString(16).padStart(6,'0')+'"></span>'
     +'<span class="lname">'+ch.emoji+ch.name.replace('社長','')+'</span>'
-    +'<span class="lnum pending" id="lnum'+i+'">-</span></div>'
+    +'<span class="lnum pending" id="lnum'+i+'">-</span>'
+    +'<span class="ldest" id="ldest'+i+'"></span></div>'
   ).join('');
 }
 function updateLegend(){
@@ -338,24 +345,31 @@ function updateLegend(){
   }
   CHARS.forEach((ch,i)=>{
     const r=el('lrow'+i);if(r)r.classList.toggle('on',i===active);
-    const num=el('lnum'+i);if(!num)return;
+    const num=el('lnum'+i),dest=el('ldest'+i);
+    if(!num)return;
     if(onBoard){
       // 盤シーン中は現金を表示
       const p=pieces[i];
       num.textContent=p?p.cash+'万':'-';
       num.classList.remove('pending');num.classList.add('cash');
+      if(dest)dest.textContent='';
       return;
     }
     num.classList.remove('cash');
-    // お椀シーン: 出目が確定（静止しスナップ完了、または純チンチロで回収済み）したら大きく表示
+    // お椀シーン: 出目が確定したら数字を大きく＋行き先（→どこで何が起こるか）を下に表示
     const d=dice.find(x=>x.owner===i);
     let val=null;
     if(d){
       if(d.recorded!=null)val=d.recorded;
       else if(!d.removed&&d.state==='settled'&&!d.snapTo)val=d.face;
     }
-    if(val!=null){num.textContent=val;num.classList.remove('pending');}
-    else{num.textContent='-';num.classList.add('pending');}
+    if(val!=null){
+      num.textContent=val;num.classList.remove('pending');
+      if(dest){const info=destTextFor(d);dest.textContent=info.txt;dest.style.color=info.c;}
+    }else{
+      num.textContent='-';num.classList.add('pending');
+      if(dest)dest.textContent='';
+    }
   });
 }
 let camBase={x:0,y:10.5,z:9.5};
@@ -383,8 +397,13 @@ function updateBoardCam(dt){
     const p=pieces[order[seqIdx]];
     const fy=boardCamHome.y*0.52;
     tgt={x:p.x*0.55,y:fy,z:p.z*0.55+fy*0.75,lx:p.x*0.85,ly:0.4,lz:p.z*0.85};
+  }else if(phase==='previewBoard'&&throwIdx<order.length){
+    // 行き先プレビューも移動時と同じ寄り視点で（少し高めにして6マス先まで見えるように）
+    const p=pieces[order[throwIdx]];
+    const fy=boardCamHome.y*0.62;
+    tgt={x:p.x*0.5,y:fy,z:p.z*0.5+fy*0.72,lx:p.x*0.8,ly:0.4,lz:p.z*0.8};
   }
-  const k=Math.min(1,dt*3.2);
+  const k=Math.min(1,dt*2.6);
   for(const key of['x','y','z','lx','ly','lz'])camCur[key]+=(tgt[key]-camCur[key])*k;
   camBoard.position.set(camCur.x,camCur.y,camCur.z);
   camBoard.lookAt(camCur.lx,camCur.ly,camCur.lz);
@@ -458,28 +477,7 @@ function matsFor(ch){
   return dieMats[ch.id];
 }
 const dieGeo=new RoundedBoxGeometry(BOWL.dieSize,BOWL.dieSize,BOWL.dieSize,3,0.13);
-/* 出目ラベルスプライト（サイコロの上に浮かべる数字） */
-function makeLabelSprite(){
-  const c=document.createElement('canvas');c.width=c.height=128;
-  const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;
-  const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:t,transparent:true,depthWrite:false,depthTest:false}));
-  sp.scale.set(0.95,0.95,1);sp.visible=false;sp.renderOrder=1000;   // 常に手前に描く
-  return sp;
-}
-function drawLabel(die,txt,colorCss){
-  const c=die.label.material.map.image;
-  const x=c.getContext('2d');
-  x.clearRect(0,0,128,128);
-  x.beginPath();x.arc(64,64,52,0,Math.PI*2);
-  x.fillStyle='rgba(255,252,242,.95)';x.fill();
-  x.lineWidth=8;x.strokeStyle=colorCss;x.stroke();
-  x.font="bold 64px 'Zen Maru Gothic',sans-serif";
-  x.textAlign='center';x.textBaseline='middle';
-  x.fillStyle=txt==='✕'?'#c73838':'#3a2f22';
-  x.fillText(txt,64,68);
-  die.label.material.map.needsUpdate=true;
-  die.label.visible=true;
-}
+/* 出目・行き先の表示はサイコロの上ではなく左の凡例に出す（サイコロの目を隠さないため） */
 /* 24通りの軸整列姿勢（停止時に最も近い姿勢へスナップする） */
 let ORIENTS=[];
 function buildOrientations(){
@@ -522,33 +520,21 @@ function destTextFor(d){
   if(t.owner===d.owner)return{txt:'→自分の物件',c:'#2e8b57'};
   return{txt:'→'+CHARS[t.owner].emoji+'に-'+Math.round(t.price*RENT_RATE)+'万',c:'#c04040'};
 }
-function updateDestChip(d){
-  if(d.destSp){scene.remove(d.destSp);d.destSp.material.map.dispose();d.destSp.material.dispose();d.destSp=null;}
-  if(!tiles.length)return;
-  const info=destTextFor(d);
-  d.destSp=makeTextSprite(info.txt,32,info.c,2.3);
-  d.destSp.material.depthTest=false;
-  d.destSp.renderOrder=998;
-  scene.add(d.destSp);
-}
-
 /* ===== サイコロの生成と投擲 ===== */
 function spawnDie(chIdx,power){
   const ch=CHARS[chIdx];
   const mesh=new THREE.Mesh(dieGeo,matsFor(ch));
   scene.add(mesh);
-  const label=makeLabelSprite();scene.add(label);
   const v0=lerp(TUNE.throwVMin,TUNE.throwVMax,power);
   const jitter=(Math.random()-0.5)*0.05;            // ごく僅かな揺らぎ（狙いは効く）
   const dir=aimDir(aimAngle+jitter);
   const d={
-    owner:chIdx,ch,mesh,label,
+    owner:chIdx,ch,mesh,
     x:0,z:ENTRY_R,                                   // 手前（プレイヤー側）のふち中央から入る
     vx:dir.x*v0,vz:dir.z*v0,
     state:'roll',                                    // roll|settled
     face:0,q:new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.random()*3,Math.random()*3,Math.random()*3)),
     snapT:0,snapFrom:null,snapTo:null,
-    destSp:null,                                     // 行き先チップ
   };
   dice.push(d);
   rattle(0.14);
@@ -617,8 +603,7 @@ function stepPhysics(dt){
       d.q.slerpQuaternions(d.snapFrom,d.snapTo,t);
       if(t>=1){
         d.q.copy(d.snapTo);d.snapTo=null;
-        drawLabel(d,''+d.face,'#'+d.ch.color.toString(16).padStart(6,'0'));
-        updateDestChip(d);   // 出目確定→行き先を表示
+        updateLegend();   // 出目と行き先は左の凡例に表示（サイコロの目を隠さない）
         beep(840,0.05,'sine');
       }
     }
@@ -641,8 +626,7 @@ function stepPhysics(dt){
     // 静止していたサイコロが弾かれた→転がり直し（出目が変わるかもしれない見せ場）
     for(const t of[a,b])if(t.state==='settled'&&Math.hypot(t.vx,t.vz)>0.15){
       t.vx*=TUNE.settledDamp;t.vz*=TUNE.settledDamp;
-      t.state='roll';t.snapTo=null;t.label.visible=false;
-      if(t.destSp)t.destSp.visible=false;
+      t.state='roll';t.snapTo=null;
     }
     if(rel>1.0){
       rattle(0.16);beep(320,0.05,'square',0.08);vibrate(35);
@@ -677,10 +661,8 @@ function onThrowSettled(){
     phase='betweenThrows';betweenT=1.2;
   }
 }
-function removeDie(d,dispose=true){
-  scene.remove(d.mesh);scene.remove(d.label);
-  if(d.destSp){scene.remove(d.destSp);d.destSp.material.map.dispose();d.destSp.material.dispose();d.destSp=null;}
-  if(dispose){d.label.material.map.dispose();d.label.material.dispose();}
+function removeDie(d){
+  scene.remove(d.mesh);
   d.removed=true;
 }
 function showRoundResult(){
@@ -720,7 +702,7 @@ function P(g,geo,color,pos,scale,rot,opt={}){
   if(pos)m.position.set(...pos);if(scale)m.scale.set(...scale);if(rot)m.rotation.set(...rot);
   g.add(m);return m;
 }
-function makeEmojiSprite(txt,big){
+function makeEmojiSprite(txt,big,scale=1.25){
   const c=document.createElement('canvas');c.width=c.height=96;
   const x=c.getContext('2d');
   x.font=(big?'bold 62px':'58px')+" 'Zen Maru Gothic',sans-serif";
@@ -729,7 +711,7 @@ function makeEmojiSprite(txt,big){
   x.fillText(txt,48,52);
   const tex=new THREE.CanvasTexture(c);tex.colorSpace=THREE.SRGBColorSpace;
   const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true,depthWrite:false}));
-  sp.scale.set(1.25,1.25,1);
+  sp.scale.set(scale,scale,1);
   return sp;
 }
 /* 外周パス: 下辺中央(スタート)→右回りに一周28マス */
@@ -828,12 +810,12 @@ function buildBoardScene(){
     mesh.scale.set(GRID.cell*0.94,0.24,GRID.cell*0.94);
     mesh.position.set(x,0.08,z);
     sceneBoard.add(mesh);
-    const icon=makeEmojiSprite(st.emoji,type==='start');
-    icon.position.set(x,0.85,z);sceneBoard.add(icon);
+    const icon=makeEmojiSprite(st.emoji,type==='start',1.9);   // 盤の文字は大きめに（視認性）
+    icon.position.set(x,1.0,z);sceneBoard.add(icon);
     let priceSp=null;
     if(price){
-      priceSp=makeTextSprite(price+'万',34,'#4a3f30',1.5);
-      priceSp.position.set(x,1.6,z);sceneBoard.add(priceSp);
+      priceSp=makeTextSprite(price+'万',44,'#4a3f30',2.4);
+      priceSp.position.set(x,2.1,z);sceneBoard.add(priceSp);
     }
     // 所有者の旗（購入されたら色を付けて表示）
     const flag=new THREE.Mesh(GEO.cone,new THREE.MeshStandardMaterial({color:0xffffff}));
@@ -1020,12 +1002,19 @@ function chime(good){
 }
 function showBalloon(p,title,body,good,next){
   clearBalloons();
-  const t1=makeTextSprite(title,30,'#4a3f30',3.6);
-  const t2=makeTextSprite(body,34,good?'#2e8b57':'#c04040',3.1);
-  t1.position.set(p.x,3.4,p.z);
-  t2.position.set(p.x,2.35,p.z);
-  sceneBoard.add(t1,t2);balloonSps.push(t1,t2);
-  balloonNext=next;balloonT=1.6;
+  // 何が起きたかは画面下の大きなバナーで明示（3Dスプライトは小さくて読めないため）
+  el('bannerT').textContent=p.ch.emoji+' '+p.ch.name+'　'+title;
+  el('bannerB').textContent=body;
+  el('bannerB').style.color=good?'#2e8b57':'#c04040';
+  el('banner').classList.remove('hidden');
+  // コマの上には増減額だけの小さなポップを浮かべて空間的にも紐づける
+  const mm=body.match(/[+-]\d+万/);
+  if(mm){
+    const sp=makeTextSprite(mm[0],46,good?'#2e8b57':'#c04040',2.8);
+    sp.position.set(p.x,2.7,p.z);
+    sceneBoard.add(sp);balloonSps.push(sp);
+  }
+  balloonNext=next;balloonT=2.4;
   phase='balloonWait';
   chime(good);
   updateLegend();
@@ -1033,6 +1022,7 @@ function showBalloon(p,title,body,good,next){
 function clearBalloons(){
   for(const s of balloonSps){sceneBoard.remove(s);s.material.map.dispose();s.material.dispose();}
   balloonSps.length=0;
+  el('banner').classList.add('hidden');
 }
 /* ===== 着地処理（一人ずつ。小さい効果は吹き出し、購入/TOBだけダイアログ） ===== */
 function afterLand(p){
@@ -1266,7 +1256,7 @@ function startPreview(p){
   el('throwBtn').style.display='none';
   el('hint').classList.remove('hidden');
   el('hint').textContent='ひかっているマスの どれかにとまる！（タップで投げへ）';
-  previewT=2.6;
+  previewT=3.2;   // 寄りカメラのパンが入るぶん少し長めに見せる
   phase='previewBoard';
   beep(560,0.06,'sine');
 }
@@ -1336,7 +1326,8 @@ function bindInput(){
     if(onUI(e))return;
     if(phase==='roundResult'){startBoardPhase();return;}
     if(phase==='previewBoard'){endPreview();return;}
-    if(phase==='seqMove'||phase==='balloonWait'){fastFwd=true;return;}
+    if(phase==='seqMove'){fastFwd=true;return;}
+    if(phase==='balloonWait'){balloonT=0;return;}   // タップで即つぎへ
     if(phase==='summaryWait'){finishBoardRound();return;}
     if(phase==='gameEnd'){resetAll();return;}
     if(phase!=='await'||mode!=='finger')return;
@@ -1371,8 +1362,6 @@ function syncDice(){
     const y=bowlY(Math.min(r,BOWL.rimR))+BOWL.dieSize/2;
     d.mesh.position.set(d.x,y,d.z);
     d.mesh.quaternion.copy(d.q);
-    d.label.position.set(d.x,y+1.5,d.z);   // サイコロにかぶらないよう高めに浮かせる
-    if(d.destSp)d.destSp.position.set(d.x,y+0.78,d.z);   // 行き先チップは数字の下
   }
 }
 let settleGrace=0,moveTimeout=0;
