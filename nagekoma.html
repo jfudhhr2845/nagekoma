@@ -68,8 +68,6 @@
   <label>まさつ <span class="dv" id="v_fric"></span><input type="range" id="s_fric" min="0.6" max="3.2" step="0.1"></label>
   <label>コマ反発 <span class="dv" id="v_rest"></span><input type="range" id="s_rest" min="0.2" max="1" step="0.05"></label>
   <label>かべ反発 <span class="dv" id="v_wallRest"></span><input type="range" id="s_wallRest" min="0.1" max="1" step="0.05"></label>
-  <label>吸着半径 <span class="dv" id="v_snapR"></span><input type="range" id="s_snapR" min="0.6" max="3" step="0.1"></label>
-  <label>吸着開始速度 <span class="dv" id="v_snapV"></span><input type="range" id="s_snapV" min="0.8" max="5" step="0.1"></label>
   <div style="margin-top:8px;opacity:.75">センサー生値: <span id="v_now">-</span></div>
   <button class="dbtn" id="resetBtn">↺ 全コマをスタートへ</button>
   <button class="dbtn" id="tuneResetBtn">係数を初期値にもどす</button>
@@ -84,7 +82,7 @@
       💪 パワーは<b>軽いスナップでMAX</b>。強く振っても意味なし、<i>強すぎはコースアウト</i>のもと<br>
       🏝️ <b>強め＆山なり</b>で中央の特区へ。とどかないと<i>池ポチャ</i>（もとのマスへ）<br>
       💥 他のコマに当てると<b>はじきとばせる</b>。とまったマスがそのコマの新しい現在地<br>
-      🧲 ゆっくりになると<b>近くのマスに吸着</b>してとまる
+      🧲 <b>5社ぜんいん投げ終わったら</b>、いちばん近いマスへ一斉に確定するのだ
     </div>
     <button class="btn" id="startBtn">📱 センサーで遊ぶ</button>
     <button class="btn sub2" id="fingerBtn">👆 指で遊ぶ（ひっぱって発射）</button>
@@ -121,9 +119,6 @@ const TUNE_DEF={
   fric:1.6,       // 摩擦（速度の指数減衰/s）
   rest:0.75,      // コマ同士の反発係数
   wallRest:0.55,  // 壁の反発係数
-  snapR:1.6,      // マス吸着をはじめる半径
-  snapV:2.2,      // この速度以下で吸着開始
-  snapAcc:26,     // 吸着の引力
 };
 let TUNE={...TUNE_DEF};
 try{const s=JSON.parse(localStorage.getItem('nagekoma_tune')||'null');if(s)TUNE={...TUNE_DEF,...s};}catch(e){}
@@ -139,6 +134,8 @@ const BOARD={
 };
 const FLIGHT_KEEP=0.35;  // 着地後に残す水平速度の割合
 const SPLASH_T=0.9;      // 池ポチャ演出秒数
+const BETWEEN_T=1.0;     // 1投ごとのミニ結果表示→つぎの人へ自動で移る秒数
+const RESOLVE_DUR=0.45;  // ラウンド確定（全コマいっせい吸着）の演出秒数
 
 /* ===== 5社のコマ定義（業種は演出のみ。経済はフェーズ2） ===== */
 const CHARS=[
@@ -152,13 +149,13 @@ const CHARS=[
 /* ===== 状態 ===== */
 let scene,camera,renderer;
 let mode=null;                 // 'sensor' | 'finger'
-let phase='menu';              // menu|calib|await|aiming|moving|result
+let phase='menu';              // menu|calib|await|aiming|moving|betweenTurns|resolving|roundResult
 let pieces=[],tiles=[];
-let turnIdx=0;
+let turnIdx=0,roundThrows=0,betweenT=0,resolveT=0;
 let armed=false,aimOff=0;      // センサー: おさえ中のみ投げ受付
 let dragOn=false,dragSX=0,dragSY=0,dragPow=0,dragAng=0;
 let spikeCap=null,throwCd=0;
-let events=[];                 // このターンの出来事ログ
+let events=[];                 // この投擲の出来事ログ
 let marker,arrowG,arrowShaft,arrowHead;
 let tiltX=0,tiltXsm=0,rotBeta=0,rotPeak=0,baseGX=0,baseGZ=0,lastG={x:0,y:0,z:9.8};
 let prevT=0;
@@ -363,6 +360,7 @@ function buildPieces(){
       region:'ring',sq:0,lastSq:0,
       flyT:0,flyDur:1,flyH:3,
       splashT:0,
+      snapFrom:null,snapTile:null,
     };
     pieces.push(p);
   });
@@ -459,8 +457,12 @@ function onMotion(e){
     tiltX=(g.x-baseGX)/9.8;
   }
   const r=e.rotationRate;
-  if(r&&r.beta!=null)rotBeta=r.beta;else if(r&&r.alpha!=null)rotBeta=r.alpha;
-  const ab=Math.abs(rotBeta);
+  if(r){
+    // 持ち方でスナップが出る軸が変わるため、beta(前後)とgamma(左右)の大きい方を採用する
+    const b=r.beta!=null?Math.abs(r.beta):0,gm=r.gamma!=null?Math.abs(r.gamma):0;
+    rotBeta=Math.max(b,gm);
+  }
+  const ab=rotBeta;
   if(ab>rotPeak)rotPeak=ab;
   // スパイク検知: おさえている間(armed)のみ受付。発動後は少し様子見してピークをパワーにする
   if(phase==='aiming'&&mode==='sensor'&&armed&&throwCd<=0&&!spikeCap&&ab>TUNE.spikeThr){
@@ -505,7 +507,7 @@ function bindInput(){
   window.addEventListener('pointerdown',e=>{
     if(onUI(e))return;
     if(phase==='await'){beginAim();return;}
-    if(phase==='result'){nextTurn();return;}
+    if(phase==='roundResult'){hideRoundResult();return;}
     if(phase!=='aiming')return;
     if(mode==='sensor'){
       armed=true;el('armB').style.display='block';
@@ -524,7 +526,9 @@ function bindInput(){
     el('powerFill').style.width=(dragPow*100)+'%';
   });
   window.addEventListener('pointerup',e=>{
-    if(mode==='sensor'){armed=false;spikeCap=null;el('armB').style.display='none';return;}
+    // spikeCapはここで消さない: 「くいっ」の瞬間に指が自然と離れても、検知済みのスパイクは
+    // loop()側の確定タイマーで投擲まで進めたい（誤爆防止はarmed=falseで新規検知を止めるだけで十分）
+    if(mode==='sensor'){armed=false;el('armB').style.display='none';return;}
     if(phase!=='aiming'||!dragOn)return;
     dragOn=false;el('powerWrap').style.display='none';
     if(dragPow>0.1)doThrow(dragPow,dragAng);
@@ -641,23 +645,8 @@ function stepPhysics(dt){
         // 島: ふちを越えたら池ポチャ
         if(r>BOARD.islandR-0.35){startSplash(p,'いけポチャ！ 🌊 もとのマスへ…');continue;}
       }
-      // マス吸着: 遅くなったら最寄りマスへ磁石スナップ
-      sp=Math.hypot(p.vx,p.vz);
-      if(sp<TUNE.snapV){
-        const {tile,d}=nearestTile(p);
-        if(tile&&(d<TUNE.snapR||sp<0.3)){
-          const inv=1/(d||1e-6);
-          p.vx+=(tile.x-p.x)*inv*TUNE.snapAcc*dt;
-          p.vz+=(tile.z-p.z)*inv*TUNE.snapAcc*dt;
-          const dm=Math.exp(-3.5*dt);p.vx*=dm;p.vz*=dm;
-          if(d<0.12&&Math.hypot(p.vx,p.vz)<1.0){
-            p.x=tile.x;p.z=tile.z;p.vx=0;p.vz=0;
-            p.state='stop';p.sq=tile.idx;
-            beep(760,0.06,'sine');
-            if(p===cur())events.push(TYPE_NAME[tile.type]+'（'+(tile.region==='ring'?'マス'+tile.idx:'特区')+'）にとまった！');
-          }
-        }
-      }
+      // 摩擦だけで自然停止（おはじきのように自由に転がる。マスへの帰属はラウンド最後に一斉決定）
+      if(Math.hypot(p.vx,p.vz)<=0.001){p.vx=0;p.vz=0;p.state='stop';}
     }else if(p.state==='splash'){
       p.splashT+=dt;
       p.y=-p.splashT*1.6;
@@ -733,37 +722,71 @@ function beginAim(){
     ?'おさえながら かたむけてねらい、くいっとスナップ！'
     :'ひっぱって はなす！（長くひっぱるほど強い）';
 }
-function finishMotion(){
-  spreadSharedTiles();
+/* 1投が着地・静止した直後: まだそのマスは確定しない（ラウンド最後にまとめて決める）。
+   軽いトースト表示だけしてすぐ次の人へ回す。ラウンドの最後の1投ならそのまま確定演出へ */
+function onThrowSettled(){
   syncMeshes();
-  const p=cur();
-  if(!events.some(s=>s.includes('とまった')||s.includes('もとのマス'))){
-    const t=tiles[p.sq];
-    events.push(TYPE_NAME[t.type]+'にとまった！');
+  roundThrows++;
+  const msg=events.length?events.join(' '):'ころりん…';
+  if(roundThrows>=pieces.length){
+    roundThrows=0;
+    startResolve();
+  }else{
+    el('turnB').classList.add('hidden');
+    el('hint').classList.remove('hidden');
+    el('hint').textContent=msg;
+    phase='betweenTurns';betweenT=BETWEEN_T;
   }
-  el('resultT').textContent=p.ch.name;
-  el('resultS').innerHTML=events.join('<br>');
-  el('resultPop').style.display='flex';
-  phase='result';
-  beep(660,0.08,'sine');
 }
-function nextTurn(){
+/* ラウンド確定: 全コマをいっせいに最寄りマスへ吸着させる演出 */
+function startResolve(){
+  resolveT=0;
+  for(const p of pieces){
+    const {tile}=nearestTile(p);
+    p.snapFrom={x:p.x,z:p.z};
+    p.snapTile=tile;
+  }
+  marker.visible=false;arrowG.visible=false;
+  el('turnB').classList.add('hidden');
+  el('hint').classList.remove('hidden');
+  el('hint').textContent='ラウンドのマスを確定中…';
+  phase='resolving';
+  beep(700,0.09,'sine');
+}
+function showRoundResult(){
+  const lines=pieces.map(p=>{
+    const t=tiles[p.sq];
+    return p.ch.name+'：'+TYPE_NAME[t.type]+(t.region==='ring'?'（マス'+t.idx+'）':'（特区）');
+  });
+  el('resultT').textContent='ラウンド確定！';
+  el('resultS').innerHTML=lines.join('<br>');
+  el('resultPop').style.display='flex';
+  el('hint').classList.add('hidden');
+  phase='roundResult';
+  beep(880,0.1,'triangle');setTimeout(()=>beep(1180,0.12,'triangle'),100);
+  vibrate(50);
+}
+function hideRoundResult(){
   el('resultPop').style.display='none';
   turnIdx=(turnIdx+1)%pieces.length;
   showTurn();
 }
 function startPlay(){
   el('dbgBtn').classList.remove('hidden');
+  roundThrows=0;
   showTurn();
 }
 function resetPieces(){
   const t=tiles[0];
   for(const p of pieces){
     p.x=t.x;p.z=t.z;p.y=0;p.vx=0;p.vz=0;
-    p.state='stop';p.sq=0;p.lastSq=0;p.region='ring';
+    p.state='stop';p.sq=0;p.lastSq=0;p.region='ring';p.snapTile=null;
   }
   spreadSharedTiles();syncMeshes();
-  if(phase==='moving'||phase==='result'){el('resultPop').style.display='none';showTurn();}
+  roundThrows=0;
+  if(phase==='moving'||phase==='betweenTurns'||phase==='resolving'||phase==='roundResult'){
+    el('resultPop').style.display='none';showTurn();
+  }
   beep(520,0.06);
 }
 
@@ -797,16 +820,36 @@ function loop(){
     moveTimeout+=dt;
     if(!anyMoving()){
       settleGrace+=dt;
-      if(settleGrace>0.25){settleGrace=0;moveTimeout=0;finishMotion();}
+      if(settleGrace>0.25){settleGrace=0;moveTimeout=0;onThrowSettled();}
     }else settleGrace=0;
-    if(moveTimeout>8){ // 保険: 8秒で強制整着（ターンが止まるバグ防止）
-      for(const p of pieces)if(p.state!=='stop'){
-        const {tile}=nearestTile(p);
-        if(tile){p.x=tile.x;p.z=tile.z;p.sq=tile.idx;}
-        p.vx=0;p.vz=0;p.y=0;p.state='stop';
-      }
-      moveTimeout=0;settleGrace=0;finishMotion();
+    if(moveTimeout>8){ // 保険: 8秒で強制停止（ターンが止まるバグ防止。マス確定はラウンド末で行う）
+      for(const p of pieces)if(p.state!=='stop'){p.vx=0;p.vz=0;p.y=0;p.state='stop';}
+      moveTimeout=0;settleGrace=0;onThrowSettled();
     }
+  }else if(phase==='betweenTurns'){
+    betweenT-=dt;
+    if(betweenT<=0){turnIdx=(turnIdx+1)%pieces.length;showTurn();}
+    moveTimeout=0;
+  }else if(phase==='resolving'){
+    resolveT+=dt;
+    const t=Math.min(1,resolveT/RESOLVE_DUR);
+    const ease=1-Math.pow(1-t,3);
+    for(const p of pieces){
+      if(!p.snapTile)continue;
+      p.x=lerp(p.snapFrom.x,p.snapTile.x,ease);
+      p.z=lerp(p.snapFrom.z,p.snapTile.z,ease);
+    }
+    syncMeshes();
+    if(t>=1){
+      for(const p of pieces){
+        if(!p.snapTile)continue;
+        p.x=p.snapTile.x;p.z=p.snapTile.z;p.sq=p.snapTile.idx;p.region=p.snapTile.region;
+        p.snapTile=null;
+      }
+      spreadSharedTiles();syncMeshes();
+      showRoundResult();
+    }
+    moveTimeout=0;
   }else{moveTimeout=0;}
 
   // 手番マーカー＆ねらい矢印
@@ -833,8 +876,8 @@ function loop(){
 }
 
 /* ===== デバッグパネル ===== */
-const DBG_KEYS=['spikeThr','spikeMax','aimRange','dragMax','rollV','loftPow','loftMaxD','fric','rest','wallRest','snapR','snapV'];
-function fmtV(k,v){return (k==='loftPow'||k==='rest'||k==='wallRest'||k==='fric'||k==='snapR'||k==='snapV'||k==='rollV'||k==='loftMaxD')?(+v).toFixed(2).replace(/\.?0+$/,''):Math.round(v)+'';}
+const DBG_KEYS=['spikeThr','spikeMax','aimRange','dragMax','rollV','loftPow','loftMaxD','fric','rest','wallRest'];
+function fmtV(k,v){return (k==='loftPow'||k==='rest'||k==='wallRest'||k==='fric'||k==='rollV'||k==='loftMaxD')?(+v).toFixed(2).replace(/\.?0+$/,''):Math.round(v)+'';}
 function bindDbg(){
   for(const k of DBG_KEYS){
     const s=el('s_'+k);if(!s)continue;
