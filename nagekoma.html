@@ -14,19 +14,25 @@
   #app{position:fixed;inset:0}
   canvas{display:block}
   .hud{position:fixed;pointer-events:none;z-index:6}
-  #turnB{top:10px;left:50%;transform:translateX(-50%);background:rgba(255,252,242,.92);border:2px solid var(--line);border-radius:16px;padding:8px 18px;text-align:center;box-shadow:0 4px 14px rgba(80,60,30,.18)}
+  #hudTop{top:8px;left:8px;background:rgba(255,252,242,.92);border:2px solid var(--line);border-radius:12px;padding:6px 10px;font-size:12px;font-weight:900;max-width:40vw}
+  #hudEvent{margin-top:2px;color:#c05a2e;font-size:11px}
+  #hudRank{top:52px;left:8px;background:rgba(255,252,242,.92);border:2px solid var(--line);border-radius:12px;padding:6px 10px;font-size:10.5px;font-weight:700;line-height:1.7;max-width:40vw}
+  #turnB{top:10px;left:50%;transform:translateX(-50%);background:rgba(255,252,242,.92);border:2px solid var(--line);border-radius:16px;padding:8px 18px;text-align:center;box-shadow:0 4px 14px rgba(80,60,30,.18);max-width:56vw}
   #turnName{font-size:18px;font-weight:900;line-height:1.2}
   #turnSub{font-size:11px;font-weight:700;opacity:.75}
+  #turnStatus{font-size:10px;font-weight:700;opacity:.7;margin-top:3px;white-space:normal}
   #hint{bottom:18px;left:50%;transform:translateX(-50%);font-size:13px;font-weight:900;background:rgba(255,252,242,.9);border:2px solid var(--line);border-radius:999px;padding:7px 18px;white-space:nowrap;box-shadow:0 3px 10px rgba(80,60,30,.15)}
   #powerWrap{bottom:56px;left:50%;transform:translateX(-50%);width:min(60vw,240px);height:14px;border-radius:8px;background:rgba(255,252,242,.85);border:2px solid var(--line);overflow:hidden;display:none}
   #powerFill{height:100%;width:0%;background:linear-gradient(90deg,#7ed6a0,#ffce4a,#ff6a5a);border-radius:6px}
   #armB{bottom:80px;left:50%;transform:translateX(-50%);font-size:12px;font-weight:900;color:#fff;background:rgba(255,106,90,.92);border-radius:999px;padding:5px 16px;display:none}
   #resultPop{position:fixed;inset:0;z-index:14;display:none;align-items:center;justify-content:center;pointer-events:auto}
-  #resultCard{background:rgba(255,252,242,.96);border:3px solid var(--line);border-radius:20px;padding:20px 26px;text-align:center;max-width:86vw;box-shadow:0 14px 40px rgba(60,40,20,.3);animation:popin .28s ease-out}
+  #resultCard{background:rgba(255,252,242,.96);border:3px solid var(--line);border-radius:20px;padding:20px 26px;text-align:center;max-width:86vw;max-height:80vh;overflow:auto;box-shadow:0 14px 40px rgba(60,40,20,.3);animation:popin .28s ease-out}
   @keyframes popin{0%{transform:scale(.6);opacity:0}100%{transform:scale(1);opacity:1}}
   #resultT{font-size:20px;font-weight:900;margin-bottom:6px}
   #resultS{font-size:13px;font-weight:700;line-height:1.9;opacity:.85}
   #resultTap{font-size:11px;font-weight:700;opacity:.5;margin-top:10px}
+  #resultBtns{display:flex;gap:10px;margin-top:14px}
+  #resultBtns button{flex:1;margin-top:0}
   #dbgBtn{position:fixed;top:10px;right:10px;z-index:8;pointer-events:auto;cursor:pointer;width:36px;height:36px;border-radius:50%;border:2px solid var(--line);background:rgba(255,252,242,.92);color:var(--txt);font-weight:900;font-size:16px;font-family:inherit}
   #dbg{position:fixed;top:54px;right:8px;z-index:8;background:rgba(255,252,242,.96);border:2px solid var(--line);border-radius:14px;padding:10px 12px;width:240px;font-size:11px;font-weight:700;max-height:78vh;overflow:auto;pointer-events:auto}
   #dbg label{display:block;margin-top:7px}
@@ -51,7 +57,9 @@
 </head>
 <body>
 <div id="app"></div>
-<div id="turnB" class="hud hidden"><div id="turnName">-</div><div id="turnSub">-</div></div>
+<div id="hudTop" class="hud hidden"><span id="hudMonth">4月</span> <span id="hudTurnNo">(1/12)</span><div id="hudEvent" class="hidden">-</div></div>
+<div id="hudRank" class="hud hidden">-</div>
+<div id="turnB" class="hud hidden"><div id="turnName">-</div><div id="turnSub">-</div><div id="turnStatus">-</div></div>
 <div id="hint" class="hud hidden">-</div>
 <div id="powerWrap" class="hud"><div id="powerFill"></div></div>
 <div id="armB" class="hud">🎯 ねらい中…スナップ！</div>
@@ -68,6 +76,8 @@
   <label>まさつ <span class="dv" id="v_fric"></span><input type="range" id="s_fric" min="0.6" max="3.2" step="0.1"></label>
   <label>コマ反発 <span class="dv" id="v_rest"></span><input type="range" id="s_rest" min="0.2" max="1" step="0.05"></label>
   <label>かべ反発 <span class="dv" id="v_wallRest"></span><input type="range" id="s_wallRest" min="0.1" max="1" step="0.05"></label>
+  <label>ひいた視点の距離 <span class="dv" id="v_camWideD"></span><input type="range" id="s_camWideD" min="16" max="46" step="1"></label>
+  <label>ねらい視点の距離 <span class="dv" id="v_camCloseD"></span><input type="range" id="s_camCloseD" min="3" max="12" step="0.5"></label>
   <div style="margin-top:8px;opacity:.75">センサー生値: <span id="v_now">-</span></div>
   <button class="dbtn" id="resetBtn">↺ 全コマをスタートへ</button>
   <button class="dbtn" id="tuneResetBtn">係数を初期値にもどす</button>
@@ -76,17 +86,17 @@
 <div id="start" class="overlay">
   <div class="card">
     <div class="logo">なげ<span class="a">こま</span><span class="k">(仮)</span></div>
-    <div class="sub">フェーズ1プロト＝れんしゅう場<br>スマホを「くいっ」でコマを投げるのだ</div>
+    <div class="sub">マス目のグリッドにコマを投げる経営すごろく<br>12ラウンドの総資産で社長ナンバーワンを決めるのだ</div>
     <div class="rules">
       📱 <b>画面をおさえている間</b>だけ投げ受付。<b>左右かたむけ</b>=ねらい、<b>手首くいっ</b>=投げ！<br>
-      💪 パワーは<b>軽いスナップでMAX</b>。強く振っても意味なし、<i>強すぎはコースアウト</i>のもと<br>
-      🏝️ <b>強め＆山なり</b>で中央の特区へ。とどかないと<i>池ポチャ</i>（もとのマスへ）<br>
-      💥 他のコマに当てると<b>はじきとばせる</b>。とまったマスがそのコマの新しい現在地<br>
-      🧲 <b>5社ぜんいん投げ終わったら</b>、いちばん近いマスへ一斉に確定するのだ
+      🟩 <b>止まったマスが次の現在地</b>。次の自分の番はそこからまた投げる<br>
+      🏪 空きマスに止まると<b>購入できる</b>。買ったマスはずっとあなたの色に固定、他社が止まると使用料が入る<br>
+      🎲 空きマスの中身は<b>ラウンドごと（5社全員が投げ終わるたび）シャッフル</b>される<br>
+      💥 他のコマに当てると<b>はじきとばせる</b>。12ラウンド後の総資産で勝敗が決まるのだ
     </div>
     <button class="btn" id="startBtn">📱 センサーで遊ぶ</button>
     <button class="btn sub2" id="fingerBtn">👆 指で遊ぶ（ひっぱって発射）</button>
-    <div class="note">iPhoneは「動作と方向」の許可が出るのだ。HTTPS必須（GitHub Pages等）。<br>5匹のコマをじゅんばんに投げて、投げごこちを⚙で調整してほしいのだ。</div>
+    <div class="note">iPhoneは「動作と方向」の許可が出るのだ。HTTPS必須（GitHub Pages等）。<br>投げごこちは⚙で調整できるのだ。決算の細かい数値効果はまだ未実装（次のステップ）なのだ。</div>
   </div>
 </div>
 
@@ -99,7 +109,17 @@
   </div>
 </div>
 
-<div id="resultPop"><div id="resultCard"><div id="resultT">-</div><div id="resultS">-</div><div id="resultTap">タップでつぎへ</div></div></div>
+<div id="resultPop">
+  <div id="resultCard">
+    <div id="resultT">-</div>
+    <div id="resultS">-</div>
+    <div id="resultTap">タップでつぎへ</div>
+    <div id="resultBtns" class="hidden">
+      <button class="btn sub2" id="buyNoBtn">やめとく</button>
+      <button class="btn" id="buyYesBtn">買う！</button>
+    </div>
+  </div>
+</div>
 
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
 <script type="module">
@@ -113,50 +133,69 @@ const TUNE_DEF={
   tiltFull:0.35,  // この傾き(重力比)でフル舵
   dragMax:170,    // 指モード: この引き距離(px)で最大パワー
   rollV:17,       // 転がし投げの最大初速
-  loftPow:0.55,   // このパワー以上で山なり弾道（未満はリング沿いの転がし）
+  loftPow:0.55,   // このパワー以上で山なり弾道（未満は転がし）
   loftMinD:7,     // 山なり最小距離
   loftMaxD:16.5,  // 山なり最大距離
   fric:1.6,       // 摩擦（速度の指数減衰/s）
   rest:0.75,      // コマ同士の反発係数
   wallRest:0.55,  // 壁の反発係数
+  camWideD:30,    // ひいた視点のカメラ距離
+  camCloseD:6.5,  // ねらい中の近い視点の距離
 };
 let TUNE={...TUNE_DEF};
 try{const s=JSON.parse(localStorage.getItem('nagekoma_tune')||'null');if(s)TUNE={...TUNE_DEF,...s};}catch(e){}
 
 /* ===== 盤ジオメトリ定数 ===== */
-const BOARD={
-  ringR:10,      // 外周リング中心半径
-  tileN:24,      // 外周マス数
-  chanIn:8.4,    // リング内壁半径
-  chanOut:11.6,  // リング外壁半径
-  islandR:3.3,   // 中央島の半径
-  pieceR:0.75,   // コマの当たり半径
-};
+const BOARD={pieceR:0.75};
+const GRID={cols:7,rows:9,cell:2.3};   // マス目グリッド
 const FLIGHT_KEEP=0.35;  // 着地後に残す水平速度の割合
-const SPLASH_T=0.9;      // 池ポチャ演出秒数
 const BETWEEN_T=1.0;     // 1投ごとのミニ結果表示→つぎの人へ自動で移る秒数
 const RESOLVE_DUR=0.45;  // ラウンド確定（全コマいっせい吸着）の演出秒数
+const MAX_ROUNDS=12;
+const MONTHS=['4月','5月','6月','7月','8月','9月','10月','11月','12月','1月','2月','3月'];
+const SEASON_EVENTS={
+  '4月':{name:'新年度キャンペーン',emoji:'🎉'},
+  '7月':{name:'夏枯れ予告',emoji:'☀️'},
+  '10月':{name:'台風',emoji:'🌀'},
+  '12月':{name:'年末商戦',emoji:'🎄'},
+  '2月':{name:'大相場',emoji:'📊'},
+};
 
-/* ===== 5社のコマ定義（業種は演出のみ。経済はフェーズ2） ===== */
+/* ===== 5社のコマ定義（業種の数値効果は未実装。表示のみ） ===== */
 const CHARS=[
-  {id:'kuma',   name:'くま社長',   ind:'🏢不動産', color:0xb9855a, sub:0x8a5f3c},
-  {id:'kitsune',name:'きつね社長', ind:'🏦金融',   color:0xe8954f, sub:0xc9732e},
-  {id:'usagi',  name:'うさぎ社長', ind:'🛍️小売',   color:0xf5e3dd, sub:0xe0b8ac},
-  {id:'kotori', name:'ことり社長', ind:'🚢商社',   color:0xf2d05e, sub:0xd8a83a},
-  {id:'kame',   name:'かめ社長',   ind:'🏭製造',   color:0x7cc47f, sub:0x4e8f57},
+  {id:'kuma',   name:'くま社長',   ind:'🏢不動産', color:0xb9855a, sub:0x8a5f3c, trait:'物件収益+20%・購入2割引／弱点:資金繰り'},
+  {id:'kitsune',name:'きつね社長', ind:'🏦金融',   color:0xe8954f, sub:0xc9732e, trait:'現金運用益・借入いつでも可／弱点:物件収益-20%'},
+  {id:'usagi',  name:'うさぎ社長', ind:'🛍️小売',   color:0xf5e3dd, sub:0xe0b8ac, trait:'使用料2倍・年末商戦強い／弱点:夏枯れ'},
+  {id:'kotori', name:'ことり社長', ind:'🚢商社',   color:0xf2d05e, sub:0xd8a83a, trait:'移動距離で収益／弱点:評価額-20%'},
+  {id:'kame',   name:'かめ社長',   ind:'🏭製造',   color:0x7cc47f, sub:0x4e8f57, trait:'収益が複利成長・増設半額／弱点:序盤が弱い'},
 ];
+
+/* ===== マス種別: start / empty(空き地) / prop(物件) / event / bank(融資) / tob ===== */
+const TILE_STYLE={
+  start:{c:0xf5c84e,emoji:'Ｓ'},
+  empty:{c:0xdfe6d0,emoji:''},
+  prop: {c:0x9ed49a,emoji:'🏪'},
+  event:{c:0xc79ade,emoji:'🎲'},
+  bank: {c:0x8ab8e0,emoji:'🏦'},
+  tob:  {c:0xe08a8a,emoji:'📈'},
+};
+const TYPE_NAME={start:'スタート',empty:'空き地',prop:'物件マス',event:'イベントマス',bank:'融資マス',tob:'TOBマス'};
+const TILE_POOL=[{type:'empty',w:46},{type:'prop',w:38},{type:'event',w:9},{type:'bank',w:4},{type:'tob',w:3}];
+const START_OFFSETS=[[-2,-2],[2,-2],[-2,2],[2,2],[0,3]];  // 5社の初期マス（中央のスタートから少しずつずらす）
 
 /* ===== 状態 ===== */
 let scene,camera,renderer;
 let mode=null;                 // 'sensor' | 'finger'
-let phase='menu';              // menu|calib|await|aiming|moving|betweenTurns|resolving|roundResult
+let phase='menu';              // menu|calib|await|aiming|moving|betweenTurns|resolving|roundResult|buyDecision|gameEnd
 let pieces=[],tiles=[];
-let turnIdx=0,roundThrows=0,betweenT=0,resolveT=0;
-let armed=false,aimOff=0;      // センサー: おさえ中のみ投げ受付
+let turnIdx=0,roundThrows=0,betweenT=0,resolveT=0,roundNo=1;
+let buyQueue=[],buyIdx=0;
+let armed=false;               // センサー: おさえ中のみ投げ受付
 let dragOn=false,dragSX=0,dragSY=0,dragPow=0,dragAng=0;
 let spikeCap=null,throwCd=0;
 let events=[];                 // この投擲の出来事ログ
 let marker,arrowG,arrowShaft,arrowHead;
+let camBlend=0;
 let tiltX=0,tiltXsm=0,rotBeta=0,rotPeak=0,baseGX=0,baseGZ=0,lastG={x:0,y:0,z:9.8};
 let prevT=0;
 const el=id=>document.getElementById(id);
@@ -165,11 +204,11 @@ const el=id=>document.getElementById(id);
 let actx=null;
 function beep(f,d,type='square',g0=0.12){try{actx=actx||new(window.AudioContext||window.webkitAudioContext)();}catch(e){return;}if(actx.state==='suspended')actx.resume();const o=actx.createOscillator(),g=actx.createGain();o.type=type;o.frequency.value=f;g.gain.setValueAtTime(0.0001,actx.currentTime);g.gain.exponentialRampToValueAtTime(g0,actx.currentTime+0.01);g.gain.exponentialRampToValueAtTime(0.0001,actx.currentTime+d);o.connect(g).connect(actx.destination);o.start();o.stop(actx.currentTime+d+0.02);}
 function whack(){if(!actx)return;beep(200,0.08,'square');const n=actx.createBufferSource(),b=actx.createBuffer(1,1500,actx.sampleRate),ch=b.getChannelData(0);for(let i=0;i<1500;i++)ch[i]=(Math.random()*2-1)*(1-i/1500);n.buffer=b;const g=actx.createGain();g.gain.setValueAtTime(0.15,actx.currentTime);g.gain.exponentialRampToValueAtTime(0.001,actx.currentTime+0.12);n.connect(g).connect(actx.destination);n.start();}
-function splashSnd(){beep(340,0.1,'sine');setTimeout(()=>beep(180,0.22,'sine',0.1),70);setTimeout(()=>beep(120,0.3,'sine',0.08),160);}
 function vibrate(ms){if(navigator.vibrate)try{navigator.vibrate(ms);}catch(e){}}
 
 /* ===== 幾何ヘルパ ===== */
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const clampInt=(v,a,b)=>Math.max(a,Math.min(b,v));
 const lerp=(a,b,t)=>a+(b-a)*t;
 
 /* ===== 共有ジオメトリ ===== */
@@ -209,38 +248,11 @@ function init3(){
   prevT=performance.now();loop();
 }
 function fitCam(){
-  const a=innerWidth/innerHeight;
-  camera.aspect=a;
-  const d=a>=0.9?24:24*(0.95/a);   // 縦画面では引いて盤全体を収める
-  camera.position.set(0,d,d*0.6);
-  camera.lookAt(0,0,-0.8);
+  camera.aspect=innerWidth/innerHeight;
   camera.updateProjectionMatrix();
 }
 
-/* ===== 盤面 ===== */
-/* マス種別: start / prop(物件) / event / bank(融資) / tob / tokku(特区) */
-const TILE_DEFS=(()=>{
-  const t=[];
-  for(let i=0;i<BOARD.tileN;i++){
-    let type='prop';
-    if(i===0)type='start';
-    else if(i===3||i===9||i===15||i===21)type='event';
-    else if(i===6)type='bank';
-    else if(i===18)type='tob';
-    t.push(type);
-  }
-  return t;
-})();
-const TILE_STYLE={
-  start:{c:0xf5c84e,emoji:'Ｓ'},
-  prop:{c:0x9ed49a,emoji:'🏪'},
-  event:{c:0xc79ade,emoji:'🎲'},
-  bank:{c:0x8ab8e0,emoji:'🏦'},
-  tob:{c:0xe08a8a,emoji:'📈'},
-  tokku:{c:0xf0b06a,emoji:'💎'},
-};
-const TYPE_NAME={start:'スタート広場',prop:'物件マス',event:'イベントマス',bank:'融資マス',tob:'TOBマス',tokku:'特区'};
-function tileAngle(i){return -Math.PI/2+i*(Math.PI*2/BOARD.tileN);} // i=0が画面上、時計回り
+/* ===== 盤面（マス目グリッド） ===== */
 function makeEmojiSprite(txt,big){
   const c=document.createElement('canvas');c.width=c.height=96;
   const x=c.getContext('2d');
@@ -253,56 +265,68 @@ function makeEmojiSprite(txt,big){
   sp.scale.set(1.25,1.25,1);
   return sp;
 }
+function pickType(){
+  const total=TILE_POOL.reduce((s,x)=>s+x.w,0);
+  let r=Math.random()*total;
+  for(const x of TILE_POOL){r-=x.w;if(r<0)return x.type;}
+  return 'empty';
+}
+function updateTileVisual(t){
+  const st=TILE_STYLE[t.type];
+  const color=t.owner!=null?pieces[t.owner].ch.color:st.c;
+  t.mesh.material.color.setHex(color);
+  if(t.sprite){scene.remove(t.sprite);t.sprite.material.map.dispose();t.sprite.material.dispose();t.sprite=null;}
+  if(st.emoji){
+    const sp=makeEmojiSprite(st.emoji,t.type==='start');
+    sp.position.set(t.x,0.65,t.z);
+    scene.add(sp);
+    t.sprite=sp;
+  }
+}
+function shuffleTiles(){
+  for(const t of tiles){
+    if(t.locked)continue;   // 買われたマス・スタートはシャッフル対象外（固定）
+    t.type=pickType();
+    t.price=t.type==='prop'?(200+Math.floor(Math.random()*9)*50):null;
+    updateTileVisual(t);
+  }
+}
 function buildBoard(){
+  const hw=GRID.cols*GRID.cell/2,hd=GRID.rows*GRID.cell/2;
   // 土台
-  const base=new THREE.Mesh(new THREE.CylinderGeometry(12.8,13.2,0.6,48),
+  const base=new THREE.Mesh(new THREE.BoxGeometry(hw*2+1.4,0.5,hd*2+1.4),
     new THREE.MeshStandardMaterial({color:0xd8c99a,roughness:1}));
-  base.position.y=-0.32;scene.add(base);
-  // リング路面
-  const path=new THREE.Mesh(new THREE.RingGeometry(BOARD.chanIn,BOARD.chanOut,64),
-    new THREE.MeshStandardMaterial({color:0xcfe8b8,roughness:1}));
-  path.rotation.x=-Math.PI/2;path.position.y=-0.01;scene.add(path);
-  // 池（内壁と島のあいだ）
-  const pond=new THREE.Mesh(new THREE.RingGeometry(BOARD.islandR,BOARD.chanIn,64),
-    new THREE.MeshStandardMaterial({color:0x58a8c8,roughness:0.4,transparent:true,opacity:0.92}));
-  pond.rotation.x=-Math.PI/2;pond.position.y=-0.04;scene.add(pond);
-  window._pondMat=pond.material;
-  // 中央島
-  const isl=new THREE.Mesh(new THREE.CylinderGeometry(BOARD.islandR,BOARD.islandR+0.3,0.34,40),
-    new THREE.MeshStandardMaterial({color:0xa8d890,roughness:1}));
-  isl.position.y=-0.14;scene.add(isl);
-  // 壁（低いフェンス）
-  for(const[r,cc]of[[BOARD.chanOut,0xb99a68],[BOARD.chanIn,0xb99a68]]){
-    const w=new THREE.Mesh(new THREE.TorusGeometry(r,0.15,8,72),
-      new THREE.MeshStandardMaterial({color:cc,roughness:1}));
-    w.rotation.x=-Math.PI/2;w.position.y=0.18;scene.add(w);
+  base.position.y=-0.3;scene.add(base);
+  // 低い外周フェンス
+  const fenceMat=new THREE.MeshStandardMaterial({color:0xb99a68,roughness:1});
+  const fN=new THREE.Mesh(new THREE.BoxGeometry(hw*2+0.3,0.32,0.3),fenceMat);fN.position.set(0,0.14,-hd-0.1);scene.add(fN);
+  const fS=fN.clone();fS.position.z=hd+0.1;scene.add(fS);
+  const fW=new THREE.Mesh(new THREE.BoxGeometry(0.3,0.32,hd*2+0.3),fenceMat);fW.position.set(-hw-0.1,0.14,0);scene.add(fW);
+  const fE=fW.clone();fE.position.x=hw+0.1;scene.add(fE);
+  // マス目
+  const startCol=Math.floor(GRID.cols/2),startRow=Math.floor(GRID.rows/2);
+  let idx=0;
+  for(let r=0;r<GRID.rows;r++){
+    for(let c=0;c<GRID.cols;c++){
+      const x=(c-(GRID.cols-1)/2)*GRID.cell, z=(r-(GRID.rows-1)/2)*GRID.cell;
+      const isStart=(c===startCol&&r===startRow);
+      const t={idx,col:c,row:r,x,z,type:isStart?'start':'empty',owner:null,locked:isStart,price:null,mesh:null,sprite:null};
+      const mesh=new THREE.Mesh(GEO.box,new THREE.MeshStandardMaterial({color:TILE_STYLE[t.type].c,roughness:0.95}));
+      mesh.scale.set(GRID.cell*0.86,0.22,GRID.cell*0.86);
+      mesh.position.set(x,0.06,z);
+      scene.add(mesh);
+      t.mesh=mesh;
+      tiles.push(t);
+      idx++;
+    }
   }
-  // 外周マス
-  for(let i=0;i<BOARD.tileN;i++){
-    const type=TILE_DEFS[i],st=TILE_STYLE[type];
-    const a=tileAngle(i);
-    const x=Math.cos(a)*BOARD.ringR,z=Math.sin(a)*BOARD.ringR;
-    const m=new THREE.Mesh(GEO.box,new THREE.MeshStandardMaterial({color:st.c,roughness:0.95}));
-    m.scale.set(2.0,0.22,1.5);
-    m.position.set(x,0.06,z);
-    m.rotation.y=-a-Math.PI/2;   // タイルの長辺をリング接線に沿わせる
-    scene.add(m);
-    const sp=makeEmojiSprite(st.emoji,type==='start');
-    sp.position.set(x,0.65,z);scene.add(sp);
-    tiles.push({idx:i,x,z,type,region:'ring'});
-  }
-  // 特区（中央島5マス: 中心+東西南北）
-  const islPos=[[0,0]];
-  for(let k=0;k<4;k++){const a=Math.PI/4+k*Math.PI/2;islPos.push([Math.cos(a)*2.05,Math.sin(a)*2.05]);}
-  islPos.forEach(([x,z],k)=>{
-    const m=new THREE.Mesh(GEO.box,new THREE.MeshStandardMaterial({color:TILE_STYLE.tokku.c,roughness:0.95}));
-    m.scale.set(1.45,0.22,1.45);
-    m.position.set(x,0.06,z);
-    scene.add(m);
-    const sp=makeEmojiSprite(TILE_STYLE.tokku.emoji,false);
-    sp.position.set(x,0.65,z);scene.add(sp);
-    tiles.push({idx:BOARD.tileN+k,x,z,type:'tokku',region:'island'});
-  });
+  tiles.forEach(updateTileVisual);
+}
+function startTileFor(i){
+  const centerT=tiles.find(t=>t.type==='start')||tiles[0];
+  const[oc,or_]=START_OFFSETS[i];
+  const col=clampInt(centerT.col+oc,0,GRID.cols-1),row=clampInt(centerT.row+or_,0,GRID.rows-1);
+  return tiles[row*GRID.cols+col];
 }
 
 /* ===== コマ（すみっコ風・共通ベース+差分パーツ） ===== */
@@ -349,17 +373,16 @@ function makePiece(ch){
   return g;
 }
 function buildPieces(){
-  const startT=tiles[0];
   CHARS.forEach((ch,i)=>{
     const mesh=makePiece(ch);
     scene.add(mesh);
+    const t=startTileFor(i);
     const p={
-      i,ch,mesh,
-      x:startT.x,z:startT.z,y:0,vx:0,vz:0,
-      state:'stop',              // stop|roll|fly|splash
-      region:'ring',sq:0,lastSq:0,
+      i,ch,cash:1000,mesh,
+      x:t.x,z:t.z,y:0,vx:0,vz:0,
+      state:'stop',              // stop|roll|fly
+      sq:t.idx,
       flyT:0,flyDur:1,flyH:3,
-      splashT:0,
       snapFrom:null,snapTile:null,
     };
     pieces.push(p);
@@ -367,6 +390,8 @@ function buildPieces(){
   spreadSharedTiles();
   syncMeshes();
 }
+function ownedCount(p){return tiles.filter(t=>t.owner===p.i).length;}
+function totalAssets(p){return p.cash+tiles.filter(t=>t.owner===p.i).reduce((s,t)=>s+t.price,0);}
 
 /* ===== 手番マーカーと矢印ガイド ===== */
 function buildMarker(){
@@ -401,7 +426,7 @@ function setArrow(p,ang,len,hot){
   arrowHead.material.color.setHex(c);
 }
 
-/* ===== パーティクル（土けむり・水しぶき） ===== */
+/* ===== パーティクル（土けむり） ===== */
 const PMAX=120;
 let pGeo,pPts,pPos,pCol,pVel,pLife,pIdx=0;
 function makeDotTexture(){
@@ -507,7 +532,8 @@ function bindInput(){
   window.addEventListener('pointerdown',e=>{
     if(onUI(e))return;
     if(phase==='await'){beginAim();return;}
-    if(phase==='roundResult'){hideRoundResult();return;}
+    if(phase==='roundResult'){confirmRoundResult();return;}
+    if(phase==='gameEnd'){resetGame();return;}
     if(phase!=='aiming')return;
     if(mode==='sensor'){
       armed=true;el('armB').style.display='block';
@@ -536,26 +562,21 @@ function bindInput(){
   });
 }
 
-/* ===== ねらいの基準角（リング接線・時計回り） ===== */
-function aimBase(p){
-  const t=Math.atan2(p.z,p.x);
-  return p.region==='island'?t:t+Math.PI/2;  // 島からは外向きが基準
-}
+/* ===== ねらいの基準角（盤の中央を向く） ===== */
+function aimBase(p){return Math.atan2(-p.z,-p.x);}
 
 /* ===== 投擲 ===== */
 function doThrow(power,ang){
   const p=cur();
-  p.lastSq=p.sq;
   events.length=0;
   throwCd=0.6;spikeCap=null;
   armed=false;el('armB').style.display='none';
   arrowG.visible=false;marker.visible=false;
   const dir={x:Math.cos(ang),z:Math.sin(ang)};
-  const fromIsland=p.region==='island';
-  if(power>=TUNE.loftPow||fromIsland){
+  if(power>=TUNE.loftPow){
     // 山なり弾道: パワーで距離と高さが決まる（プレイヤーは弾道を別操作しない）
-    const k=fromIsland?clamp((power-0.15)/0.85,0,1):clamp((power-TUNE.loftPow)/(1-TUNE.loftPow),0,1);
-    const dist=fromIsland?lerp(5,TUNE.loftMaxD,k):lerp(TUNE.loftMinD,TUNE.loftMaxD,k);
+    const k=clamp((power-TUNE.loftPow)/(1-TUNE.loftPow),0,1);
+    const dist=lerp(TUNE.loftMinD,TUNE.loftMaxD,k);
     p.flyDur=0.75+0.45*power;
     p.flyT=0;
     p.flyH=1.8+3.4*power;
@@ -564,7 +585,6 @@ function doThrow(power,ang){
     p.state='fly';
     beep(620,0.1,'triangle');beep(880,0.08,'triangle');
   }else{
-    // 転がし: リング沿いに壁ガイドで進む
     const v0=power/TUNE.loftPow*TUNE.rollV;
     p.vx=dir.x*v0;p.vz=dir.z*v0;
     p.state='roll';
@@ -578,39 +598,21 @@ function doThrow(power,ang){
 /* ===== 物理 ===== */
 function land(p){
   p.y=0;
-  const r=Math.hypot(p.x,p.z);
   p.vx*=FLIGHT_KEEP;p.vz*=FLIGHT_KEEP;
-  if(r<BOARD.islandR-0.2){
-    p.region='island';p.state='roll';
-    emit(p.x,0.3,p.z,0xd8c9a0,8,3,2,0.5);
-    beep(300,0.06);
-  }else if(r<BOARD.chanIn-0.1){
-    startSplash(p,'いけポチャ！ 🌊 もとのマスへ…');
-  }else if(r<=BOARD.chanOut+0.4){
-    p.region='ring';p.state='roll';
-    emit(p.x,0.3,p.z,0xd8c9a0,8,3,2,0.5);
-    beep(300,0.06);
-  }else{
-    startSplash(p,'コースアウト！ 💨 もとのマスへ…');
-  }
-}
-function startSplash(p,msg){
-  p.state='splash';p.splashT=0;p.vx=0;p.vz=0;
-  if(p===cur())events.push(msg);
-  else events.push(p.ch.name+'が'+(msg.startsWith('いけ')?'池に落ちた！もとのマスへ':'場外へ！もとのマスへ'));
-  emit(p.x,0.2,p.z,0x8ad4f0,16,4,3.5,0.7);
-  splashSnd();vibrate(60);
+  p.state='roll';
+  emit(p.x,0.3,p.z,0xd8c9a0,8,3,2,0.5);
+  beep(300,0.06);
 }
 function nearestTile(p){
   let best=null,bd=1e9;
   for(const t of tiles){
-    if(t.region!==p.region)continue;
     const d=Math.hypot(t.x-p.x,t.z-p.z);
     if(d<bd){bd=d;best=t;}
   }
   return {tile:best,d:bd};
 }
 function stepPhysics(dt){
+  const hx=GRID.cols*GRID.cell/2-BOARD.pieceR,hz=GRID.rows*GRID.cell/2-BOARD.pieceR;
   for(const p of pieces){
     if(p.state==='fly'){
       p.flyT+=dt;
@@ -626,43 +628,19 @@ function stepPhysics(dt){
       let sp=Math.hypot(p.vx,p.vz);
       if(sp<1.0){const k=Math.max(0,sp-1.5*dt)/(sp||1);p.vx*=k;p.vz*=k;sp=Math.hypot(p.vx,p.vz);}
       p.x+=p.vx*dt;p.z+=p.vz*dt;
-      const r=Math.hypot(p.x,p.z)||1e-6;
-      if(p.region==='ring'){
-        // 外壁・内壁で反射（リング沿いガイド）
-        const nx=p.x/r,nz=p.z/r,pr=BOARD.pieceR;
-        if(r>BOARD.chanOut-pr){
-          const pen=r-(BOARD.chanOut-pr);
-          p.x-=nx*pen;p.z-=nz*pen;
-          const vr=p.vx*nx+p.vz*nz;
-          if(vr>0){p.vx-=(1+TUNE.wallRest)*vr*nx;p.vz-=(1+TUNE.wallRest)*vr*nz;if(vr>2)beep(240,0.04);}
-        }else if(r<BOARD.chanIn+pr){
-          const pen=(BOARD.chanIn+pr)-r;
-          p.x+=nx*pen;p.z+=nz*pen;
-          const vr=p.vx*nx+p.vz*nz;
-          if(vr<0){p.vx-=(1+TUNE.wallRest)*vr*nx;p.vz-=(1+TUNE.wallRest)*vr*nz;if(vr<-2)beep(240,0.04);}
-        }
-      }else{
-        // 島: ふちを越えたら池ポチャ
-        if(r>BOARD.islandR-0.35){startSplash(p,'いけポチャ！ 🌊 もとのマスへ…');continue;}
-      }
+      // 盤の外周フェンスで反射
+      if(p.x>hx){p.x=hx;if(p.vx>0){p.vx=-p.vx*TUNE.wallRest;if(Math.abs(p.vx)>1)beep(240,0.04);}}
+      else if(p.x<-hx){p.x=-hx;if(p.vx<0){p.vx=-p.vx*TUNE.wallRest;if(Math.abs(p.vx)>1)beep(240,0.04);}}
+      if(p.z>hz){p.z=hz;if(p.vz>0){p.vz=-p.vz*TUNE.wallRest;if(Math.abs(p.vz)>1)beep(240,0.04);}}
+      else if(p.z<-hz){p.z=-hz;if(p.vz<0){p.vz=-p.vz*TUNE.wallRest;if(Math.abs(p.vz)>1)beep(240,0.04);}}
       // 摩擦だけで自然停止（おはじきのように自由に転がる。マスへの帰属はラウンド最後に一斉決定）
       if(Math.hypot(p.vx,p.vz)<=0.001){p.vx=0;p.vz=0;p.state='stop';}
-    }else if(p.state==='splash'){
-      p.splashT+=dt;
-      p.y=-p.splashT*1.6;
-      if(p.splashT>=SPLASH_T){
-        const t=tiles[p.lastSq];
-        p.x=t.x;p.z=t.z;p.y=0;p.vx=0;p.vz=0;
-        p.state='stop';p.sq=t.idx;p.region=t.region;
-        emit(p.x,0.4,p.z,0xffffff,6,2,2,0.4);
-        beep(500,0.06,'sine');
-      }
     }
   }
   // コマ同士の衝突（接地中のみ。等質量・反発係数）
   for(let i=0;i<pieces.length;i++)for(let j=i+1;j<pieces.length;j++){
     const a=pieces[i],b=pieces[j];
-    if(a.state==='fly'||b.state==='fly'||a.state==='splash'||b.state==='splash')continue;
+    if(a.state==='fly'||b.state==='fly')continue;
     const dx=b.x-a.x,dz=b.z-a.z,d=Math.hypot(dx,dz),min=BOARD.pieceR*2;
     if(d<=1e-6||d>=min)continue;
     const nx=dx/d,nz=dz/d,ov=(min-d)/2;
@@ -677,12 +655,12 @@ function stepPhysics(dt){
     if(rel>1.2){
       whack();vibrate(40);
       for(const t of[a,b])if(t.state==='stop'){
-        t.state='roll';t.lastSq=t.sq;
+        t.state='roll';
         if(t!==cur())events.push(t.ch.name+'を はじきとばした！');
       }
       emit((a.x+b.x)/2,0.5,(a.z+b.z)/2,0xfff0a0,6,3,2,0.4);
     }else{
-      for(const t of[a,b])if(t.state==='stop'&&Math.hypot(t.vx,t.vz)>0.2){t.state='roll';t.lastSq=t.sq;}
+      for(const t of[a,b])if(t.state==='stop'&&Math.hypot(t.vx,t.vz)>0.2){t.state='roll';}
     }
   }
 }
@@ -704,6 +682,18 @@ function spreadSharedTiles(){
   }
 }
 
+/* ===== HUD更新 ===== */
+function updateHud(){
+  const month=MONTHS[(roundNo-1)%12];
+  el('hudMonth').textContent=month;
+  el('hudTurnNo').textContent='('+roundNo+'/'+MAX_ROUNDS+')';
+  const ev=SEASON_EVENTS[month];
+  if(ev){el('hudEvent').textContent=ev.emoji+' '+ev.name;el('hudEvent').classList.remove('hidden');}
+  else el('hudEvent').classList.add('hidden');
+  const ranked=[...pieces].sort((a,b)=>totalAssets(b)-totalAssets(a));
+  el('hudRank').innerHTML=ranked.map((p,i)=>(i+1)+'. '+p.ch.name.replace('社長','')+' '+totalAssets(p)+'万').join('<br>');
+}
+
 /* ===== 手番フロー ===== */
 const cur=()=>pieces[turnIdx];
 function showTurn(){
@@ -711,9 +701,11 @@ function showTurn(){
   el('turnB').classList.remove('hidden');
   el('turnName').textContent=p.ch.name+'の番！';
   el('turnSub').textContent=p.ch.ind+'　スマホを渡してね';
+  el('turnStatus').textContent='💰'+p.cash+'万　🏠'+ownedCount(p)+'件　'+p.ch.trait;
   el('hint').classList.remove('hidden');
   el('hint').textContent='タップでかまえる';
   phase='await';
+  updateHud();
 }
 function beginAim(){
   phase='aiming';
@@ -753,50 +745,151 @@ function startResolve(){
   phase='resolving';
   beep(700,0.09,'sine');
 }
+/* ラウンド確定後: 着地マスの効果（購入待ち行列・使用料・スタート賞金）を計算して表示 */
 function showRoundResult(){
+  buyQueue=[];
   const lines=pieces.map(p=>{
     const t=tiles[p.sq];
-    return p.ch.name+'：'+TYPE_NAME[t.type]+(t.region==='ring'?'（マス'+t.idx+'）':'（特区）');
+    let msg=p.ch.name+'：'+TYPE_NAME[t.type]+(t.type==='prop'?'（'+t.price+'万）':'');
+    if(t.type==='start'){
+      p.cash+=50;msg+=' → スタート賞金+50万';
+    }else if(t.type==='prop'){
+      if(t.owner==null){
+        if(p.cash>=t.price)buyQueue.push({piece:p,tile:t});
+        else msg+=' → 資金不足で購入できず';
+      }else if(t.owner!==p.i){
+        const rent=Math.round(t.price*0.1);
+        p.cash-=rent;pieces[t.owner].cash+=rent;
+        msg+=' → '+pieces[t.owner].ch.name+'へ使用料'+rent+'万';
+      }else{
+        msg+=' → 自社物件';
+      }
+    }
+    return msg;
   });
   el('resultT').textContent='ラウンド確定！';
   el('resultS').innerHTML=lines.join('<br>');
+  el('resultTap').classList.remove('hidden');
+  el('resultBtns').classList.add('hidden');
   el('resultPop').style.display='flex';
   el('hint').classList.add('hidden');
   phase='roundResult';
   beep(880,0.1,'triangle');setTimeout(()=>beep(1180,0.12,'triangle'),100);
   vibrate(50);
+  updateHud();
 }
-function hideRoundResult(){
+function confirmRoundResult(){
   el('resultPop').style.display='none';
+  startBuyDecisions();
+}
+function startBuyDecisions(){
+  if(buyQueue.length===0){proceedAfterRound();return;}
+  buyIdx=0;
+  showBuyPrompt();
+}
+function showBuyPrompt(){
+  const {piece,tile}=buyQueue[buyIdx];
+  el('resultT').textContent=piece.ch.name+'：購入する？';
+  el('resultS').innerHTML=TYPE_NAME[tile.type]+'　価格'+tile.price+'万<br>所持金'+piece.cash+'万';
+  el('resultTap').classList.add('hidden');
+  el('resultBtns').classList.remove('hidden');
+  el('resultPop').style.display='flex';
+  phase='buyDecision';
+}
+function answerBuy(yes){
+  const {piece,tile}=buyQueue[buyIdx];
+  if(yes){
+    piece.cash-=tile.price;tile.owner=piece.i;tile.locked=true;
+    updateTileVisual(tile);
+    beep(880,0.1,'triangle');vibrate(40);
+  }else beep(300,0.06);
+  buyIdx++;
+  if(buyIdx>=buyQueue.length){el('resultPop').style.display='none';proceedAfterRound();}
+  else showBuyPrompt();
+}
+function proceedAfterRound(){
+  if(roundNo>=MAX_ROUNDS){showGameEnd();return;}
+  roundNo++;
+  shuffleTiles();
   turnIdx=(turnIdx+1)%pieces.length;
+  showTurn();
+}
+function showGameEnd(){
+  const ranked=[...pieces].sort((a,b)=>totalAssets(b)-totalAssets(a));
+  const lines=ranked.map((p,i)=>(i+1)+'位　'+p.ch.name+'　総資産'+totalAssets(p)+'万');
+  el('resultT').textContent='本決算！最終結果';
+  el('resultS').innerHTML=lines.join('<br>');
+  el('resultTap').textContent='タップでもう一度あそぶ';
+  el('resultTap').classList.remove('hidden');
+  el('resultBtns').classList.add('hidden');
+  el('resultPop').style.display='flex';
+  el('turnB').classList.add('hidden');
+  phase='gameEnd';
+  beep(880,0.12,'triangle');setTimeout(()=>beep(1180,0.14,'triangle'),120);setTimeout(()=>beep(1480,0.16,'triangle'),240);
+  vibrate(120);
+}
+function resetGame(){
+  for(const p of pieces)p.cash=1000;
+  for(const t of tiles){
+    if(t.type==='start')continue;
+    t.owner=null;t.locked=false;t.type='empty';t.price=null;
+    updateTileVisual(t);
+  }
+  pieces.forEach((p,i)=>{
+    const t=startTileFor(i);
+    p.x=t.x;p.z=t.z;p.y=0;p.vx=0;p.vz=0;p.state='stop';p.sq=t.idx;p.snapTile=null;
+  });
+  spreadSharedTiles();syncMeshes();
+  roundNo=1;roundThrows=0;turnIdx=0;
+  shuffleTiles();
+  el('resultPop').style.display='none';
+  el('resultTap').textContent='タップでつぎへ';
   showTurn();
 }
 function startPlay(){
   el('dbgBtn').classList.remove('hidden');
-  roundThrows=0;
+  el('hudTop').classList.remove('hidden');
+  el('hudRank').classList.remove('hidden');
+  roundThrows=0;roundNo=1;
+  shuffleTiles();
   showTurn();
 }
 function resetPieces(){
-  const t=tiles[0];
-  for(const p of pieces){
-    p.x=t.x;p.z=t.z;p.y=0;p.vx=0;p.vz=0;
-    p.state='stop';p.sq=0;p.lastSq=0;p.region='ring';p.snapTile=null;
-  }
+  pieces.forEach((p,i)=>{
+    const t=startTileFor(i);
+    p.x=t.x;p.z=t.z;p.y=0;p.vx=0;p.vz=0;p.state='stop';p.sq=t.idx;p.snapTile=null;
+  });
   spreadSharedTiles();syncMeshes();
   roundThrows=0;
-  if(phase==='moving'||phase==='betweenTurns'||phase==='resolving'||phase==='roundResult'){
+  if(phase==='moving'||phase==='betweenTurns'||phase==='resolving'||phase==='roundResult'||phase==='buyDecision'){
     el('resultPop').style.display='none';showTurn();
   }
   beep(520,0.06);
 }
 
-/* ===== 描画同期・ループ ===== */
+/* ===== 描画同期・カメラ・ループ ===== */
 function syncMeshes(){
   for(const p of pieces){
     p.mesh.position.set(p.x,p.y,p.z);
     const sp=Math.hypot(p.vx,p.vz);
     if(sp>0.5)p.mesh.rotation.y=-Math.atan2(p.vz,p.vx)+Math.PI/2;
   }
+}
+/* 狙い中は近い「狙いカメラ」に自動で寄り、それ以外は引いた俯瞰に戻る */
+function updateCamera(dt,aimAngle){
+  const want=phase==='aiming'?1:0;
+  camBlend+=(want-camBlend)*Math.min(1,dt*4.5);
+  const p=cur();
+  const a=innerWidth/innerHeight;
+  const dScale=a>=0.9?1:(0.95/a);
+  const wd=TUNE.camWideD*dScale;
+  const WX=0,WY=wd*0.62,WZ=wd*0.6,WLX=0,WLY=0,WLZ=0;
+  const ang=aimAngle!=null?aimAngle:aimBase(p);
+  const cd=TUNE.camCloseD;
+  const CX=p.x-Math.cos(ang)*cd,CZ=p.z-Math.sin(ang)*cd,CY=cd*0.55;
+  const CLX=p.x+Math.cos(ang)*3,CLZ=p.z+Math.sin(ang)*3,CLY=0.6;
+  camera.position.set(lerp(WX,CX,camBlend),lerp(WY,CY,camBlend),lerp(WZ,CZ,camBlend));
+  camera.lookAt(lerp(WLX,CLX,camBlend),lerp(WLY,CLY,camBlend),lerp(WLZ,CLZ,camBlend));
 }
 let settleGrace=0,moveTimeout=0;
 function loop(){
@@ -843,7 +936,7 @@ function loop(){
     if(t>=1){
       for(const p of pieces){
         if(!p.snapTile)continue;
-        p.x=p.snapTile.x;p.z=p.snapTile.z;p.sq=p.snapTile.idx;p.region=p.snapTile.region;
+        p.x=p.snapTile.x;p.z=p.snapTile.z;p.sq=p.snapTile.idx;
         p.snapTile=null;
       }
       spreadSharedTiles();syncMeshes();
@@ -853,22 +946,22 @@ function loop(){
   }else{moveTimeout=0;}
 
   // 手番マーカー＆ねらい矢印
+  let aimAngleNow=null;
   if(phase==='await'||phase==='aiming'){
     const p=cur();
     marker.visible=true;
     marker.position.set(p.x,2.0+Math.sin(now/300)*0.18,p.z);
     if(phase==='aiming'){
       if(mode==='sensor'){
-        const ang=aimBase(p)+clamp(tiltXsm/TUNE.tiltFull,-1,1)*(TUNE.aimRange*Math.PI/180);
-        setArrow(p,ang,3.2,armed);
+        aimAngleNow=aimBase(p)+clamp(tiltXsm/TUNE.tiltFull,-1,1)*(TUNE.aimRange*Math.PI/180);
+        setArrow(p,aimAngleNow,3.2,armed);
       }else if(dragOn&&dragPow>0.05){
+        aimAngleNow=dragAng;
         setArrow(p,dragAng,1+dragPow*4.5,dragPow>0.8);
       }else arrowG.visible=false;
     }else arrowG.visible=false;
   }else{marker.visible=false;arrowG.visible=false;}
-
-  // 池のゆらぎ
-  if(window._pondMat)window._pondMat.opacity=0.88+Math.sin(now/900)*0.05;
+  updateCamera(dt,aimAngleNow);
 
   stepParticles(dt);
   updateDbg();
@@ -876,8 +969,9 @@ function loop(){
 }
 
 /* ===== デバッグパネル ===== */
-const DBG_KEYS=['spikeThr','spikeMax','aimRange','dragMax','rollV','loftPow','loftMaxD','fric','rest','wallRest'];
-function fmtV(k,v){return (k==='loftPow'||k==='rest'||k==='wallRest'||k==='fric'||k==='rollV'||k==='loftMaxD')?(+v).toFixed(2).replace(/\.?0+$/,''):Math.round(v)+'';}
+const DBG_KEYS=['spikeThr','spikeMax','aimRange','dragMax','rollV','loftPow','loftMaxD','fric','rest','wallRest','camWideD','camCloseD'];
+const DBG_DECIMAL=['loftPow','rest','wallRest','fric','rollV','loftMaxD','camCloseD'];
+function fmtV(k,v){return DBG_DECIMAL.includes(k)?(+v).toFixed(2).replace(/\.?0+$/,''):Math.round(v)+'';}
 function bindDbg(){
   for(const k of DBG_KEYS){
     const s=el('s_'+k);if(!s)continue;
@@ -907,6 +1001,8 @@ el('fingerBtn').onclick=()=>{
   el('start').classList.add('hidden');
   startPlay();
 };
+el('buyYesBtn').onclick=()=>answerBuy(true);
+el('buyNoBtn').onclick=()=>answerBuy(false);
 bindInput();
 bindDbg();
 init3();
