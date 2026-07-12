@@ -236,9 +236,16 @@ let spikeCap=null,throwCd=0;
 // 盤シーンの状態
 let sceneBoard,camBoard;
 let tiles=[],pieces=[],clouds=[];
-let landQueue=[],landIdx=0,landCtx=null,chainReq=null;
+let landCtx=null,chainReq=null;
 let hopDoneCb=null;
-const BOARD_PHASES=['hopping','landWait','landBuy','kessanWait','gameEnd'];
+let seqIdx=0;                    // いま移動中のプレイヤー（order内index）
+let balloonT=0,balloonNext=null,balloonSps=[];
+let fastFwd=false;               // タップで移動・吹き出しを早送り
+let previewT=0,prevCands=[];     // 手番前の行き先プレビュー（光るマス）
+let reasonsRound=[[],[],[],[],[]],cashStart=[0,0,0,0,0],prevRanks=null;
+let boardMarker=null;
+let camCur=null;                 // 盤カメラの現在位置（追従lerp用）
+const BOARD_PHASES=['previewBoard','seqMove','balloonWait','landBuy','summaryWait','gameEnd'];
 const onBoardPhase=()=>BOARD_PHASES.includes(phase);
 let events=[];               // この投擲の出来事ログ
 let facesBefore=new Map();   // 投擲前の各サイコロの出目（変化検出用）
@@ -323,7 +330,12 @@ function buildLegend(){
 }
 function updateLegend(){
   const onBoard=onBoardPhase();
-  const active=phase==='menu'||phase==='roundResult'||onBoard?-1:(throwIdx<order.length?order[throwIdx]:-1);
+  let active=-1;
+  if(phase==='previewBoard'||phase==='await'||phase==='armed'||phase==='moving'||phase==='betweenThrows'){
+    if(throwIdx<order.length)active=order[throwIdx];
+  }else if(phase==='seqMove'||phase==='balloonWait'||phase==='landBuy'){
+    if(seqIdx<order.length)active=order[seqIdx];
+  }
   CHARS.forEach((ch,i)=>{
     const r=el('lrow'+i);if(r)r.classList.toggle('on',i===active);
     const num=el('lnum'+i);if(!num)return;
@@ -356,10 +368,26 @@ function fitCam(){
   if(camBoard){
     camBoard.aspect=a;
     const d=a>=0.9?25:25*(0.95/a);
-    camBoard.position.set(0,d,d*0.62);
-    camBoard.lookAt(0,0,-0.6);
+    boardCamHome={x:0,y:d,z:d*0.62,lx:0,ly:0,lz:-0.6};
+    if(!camCur)camCur={x:boardCamHome.x,y:boardCamHome.y,z:boardCamHome.z,lx:boardCamHome.lx,ly:boardCamHome.ly,lz:boardCamHome.lz};
+    camBoard.position.set(camCur.x,camCur.y,camCur.z);
+    camBoard.lookAt(camCur.lx,camCur.ly,camCur.lz);
     camBoard.updateProjectionMatrix();
   }
+}
+let boardCamHome={x:0,y:25,z:15.5,lx:0,ly:0,lz:-0.6};
+/* 盤カメラ: 移動中はそのコマに寄って追従、それ以外は全景へ戻る */
+function updateBoardCam(dt){
+  let tgt=boardCamHome;
+  if((phase==='seqMove'||phase==='balloonWait'||phase==='landBuy')&&seqIdx<order.length){
+    const p=pieces[order[seqIdx]];
+    const fy=boardCamHome.y*0.52;
+    tgt={x:p.x*0.55,y:fy,z:p.z*0.55+fy*0.75,lx:p.x*0.85,ly:0.4,lz:p.z*0.85};
+  }
+  const k=Math.min(1,dt*3.2);
+  for(const key of['x','y','z','lx','ly','lz'])camCur[key]+=(tgt[key]-camCur[key])*k;
+  camBoard.position.set(camCur.x,camCur.y,camCur.z);
+  camBoard.lookAt(camCur.lx,camCur.ly,camCur.lz);
 }
 
 /* ===== 卓とお椀 ===== */
@@ -481,6 +509,29 @@ function nearestOrient(q){
   return best.dot(q)<0?best.clone().multiplyScalar(-1):best.clone();
 }
 
+/* ===== 行き先チップ（出目確定時にサイコロの下へ「→どこに行くか」を表示） ===== */
+function destTextFor(d){
+  const p=pieces[d.owner];
+  const steps=d.face*(p&&p.doubleNext?2:1);
+  const t=tiles[((p?p.pos:0)+steps)%tiles.length];
+  if(t.type==='start')return{txt:'→Ｓ +50万',c:'#b8860b'};
+  if(t.type==='bank')return{txt:'→🏦配当',c:'#2e6b9e'};
+  if(t.type==='tob')return{txt:'→📈TOB',c:'#c04040'};
+  if(t.type==='event')return{txt:'→🎲イベント',c:'#8a4fb0'};
+  if(t.owner==null)return{txt:'→🏪'+t.price+'万',c:'#2e8b57'};
+  if(t.owner===d.owner)return{txt:'→自分の物件',c:'#2e8b57'};
+  return{txt:'→'+CHARS[t.owner].emoji+'に-'+Math.round(t.price*RENT_RATE)+'万',c:'#c04040'};
+}
+function updateDestChip(d){
+  if(d.destSp){scene.remove(d.destSp);d.destSp.material.map.dispose();d.destSp.material.dispose();d.destSp=null;}
+  if(!tiles.length)return;
+  const info=destTextFor(d);
+  d.destSp=makeTextSprite(info.txt,32,info.c,2.3);
+  d.destSp.material.depthTest=false;
+  d.destSp.renderOrder=998;
+  scene.add(d.destSp);
+}
+
 /* ===== サイコロの生成と投擲 ===== */
 function spawnDie(chIdx,power){
   const ch=CHARS[chIdx];
@@ -497,6 +548,7 @@ function spawnDie(chIdx,power){
     state:'roll',                                    // roll|settled
     face:0,q:new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.random()*3,Math.random()*3,Math.random()*3)),
     snapT:0,snapFrom:null,snapTo:null,
+    destSp:null,                                     // 行き先チップ
   };
   dice.push(d);
   rattle(0.14);
@@ -566,6 +618,7 @@ function stepPhysics(dt){
       if(t>=1){
         d.q.copy(d.snapTo);d.snapTo=null;
         drawLabel(d,''+d.face,'#'+d.ch.color.toString(16).padStart(6,'0'));
+        updateDestChip(d);   // 出目確定→行き先を表示
         beep(840,0.05,'sine');
       }
     }
@@ -589,6 +642,7 @@ function stepPhysics(dt){
     for(const t of[a,b])if(t.state==='settled'&&Math.hypot(t.vx,t.vz)>0.15){
       t.vx*=TUNE.settledDamp;t.vz*=TUNE.settledDamp;
       t.state='roll';t.snapTo=null;t.label.visible=false;
+      if(t.destSp)t.destSp.visible=false;
     }
     if(rel>1.0){
       rattle(0.16);beep(320,0.05,'square',0.08);vibrate(35);
@@ -625,6 +679,7 @@ function onThrowSettled(){
 }
 function removeDie(d,dispose=true){
   scene.remove(d.mesh);scene.remove(d.label);
+  if(d.destSp){scene.remove(d.destSp);d.destSp.material.map.dispose();d.destSp.material.dispose();d.destSp=null;}
   if(dispose){d.label.material.map.dispose();d.label.material.dispose();}
   d.removed=true;
 }
@@ -706,16 +761,19 @@ function roundRectPath(x,px,py,w,h,r){
   x.closePath();
 }
 function makeTextSprite(txt,fontPx,colorCss,scale){
-  const c=document.createElement('canvas');c.width=192;c.height=72;
+  const c=document.createElement('canvas');c.width=320;c.height=88;
   const x=c.getContext('2d');
-  x.fillStyle='rgba(255,252,242,.92)';
-  roundRectPath(x,6,6,180,60,16);x.fill();   // ctx.roundRectは古いSafariに無いため自前パス
-  x.font='bold '+fontPx+"px 'Zen Maru Gothic',sans-serif";
+  x.fillStyle='rgba(255,252,242,.94)';
+  roundRectPath(x,6,6,308,76,20);x.fill();   // ctx.roundRectは古いSafariに無いため自前パス
+  x.strokeStyle='rgba(120,100,60,.4)';x.lineWidth=3;x.stroke();
+  let f=fontPx;
+  x.font='bold '+f+"px 'Zen Maru Gothic',sans-serif";
+  while(f>14&&x.measureText(txt).width>290){f-=2;x.font='bold '+f+"px 'Zen Maru Gothic',sans-serif";}
   x.textAlign='center';x.textBaseline='middle';
-  x.fillStyle=colorCss;x.fillText(txt,96,38);
+  x.fillStyle=colorCss;x.fillText(txt,160,46);
   const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;
   const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:t,transparent:true,depthWrite:false}));
-  sp.scale.set(scale,scale*72/192,1);
+  sp.scale.set(scale,scale*88/320,1);
   return sp;
 }
 function bTree(x,z,s=1){
@@ -817,6 +875,12 @@ function buildBoardScene(){
     sceneBoard.add(cl);clouds.push(cl);
   }
   buildBoardPieces();
+  // 手番の社の頭上マーカー（プレビュー・移動中に表示）
+  boardMarker=new THREE.Mesh(GEO.cone,new THREE.MeshStandardMaterial({color:0xff6a5a,emissive:0x80251c,roughness:0.6}));
+  boardMarker.scale.set(0.5,0.6,0.5);
+  boardMarker.rotation.x=Math.PI;
+  boardMarker.visible=false;
+  sceneBoard.add(boardMarker);
   fitCam();   // camBoardの位置・アスペクトを確定させる
 }
 /* コマ（共通ベースボディ+差分パーツ。足元に社色の座布団で識別） */
@@ -888,7 +952,7 @@ function updateTileOwnerVisual(t){
     t.flag.visible=false;
   }
 }
-/* ===== 移動（全員同時ぴょんぴょん） ===== */
+/* ===== 移動（一人ずつ・カメラ追従。タップで早送り） ===== */
 function stepHops(dt){
   let busy=false;
   for(const p of pieces){
@@ -910,19 +974,36 @@ function stepHops(dt){
 function startBoardPhase(){
   el('resultPop').style.display='none';
   el('turnB').classList.add('hidden');
+  cashStart=pieces.map(p=>p.cash);
+  reasonsRound=[[],[],[],[],[]];
+  // 出目2倍フラグはここで歩数に反映して消費（お椀の行き先チップ表示はフラグ有効中に計算済み）
   for(const p of pieces){
     const d=dice.find(x=>x.owner===p.i);
     let steps=d?(collectEach?(d.recorded??d.face):d.face):0;
     if(p.doubleNext){steps*=2;p.doubleNext=false;}
-    p.queue=[];
-    for(let k=1;k<=steps;k++)p.queue.push((p.pos+k)%tiles.length);
-    p.hopFrom=null;
+    p.plannedSteps=steps;
+    p.queue=[];p.hopFrom=null;
   }
+  seqIdx=0;fastFwd=false;
+  beginPlayerMove();
+}
+function beginPlayerMove(){
+  const p=pieces[order[seqIdx]];
+  p.queue=[];
+  for(let k=1;k<=p.plannedSteps;k++)p.queue.push((p.pos+k)%tiles.length);
+  p.hopFrom=null;
+  boardMarker.visible=true;
   el('hint').classList.remove('hidden');
-  el('hint').textContent='みんな いっせいに いどう！';
-  hopDoneCb=()=>{spreadPieces();syncPieces();buildLandQueue();};
-  phase='hopping';
-  beep(660,0.07,'triangle');
+  el('hint').textContent=p.ch.emoji+p.ch.name+' '+p.plannedSteps+'マスすすむ！（タップで早送り）';
+  hopDoneCb=()=>{spreadPieces();syncPieces();landPlayer(p,0);};
+  phase='seqMove';
+  beep(560+p.i*40,0.06,'triangle');
+}
+function endPlayerMove(){
+  clearBalloons();
+  seqIdx++;fastFwd=false;
+  if(seqIdx>=order.length){boardMarker.visible=false;roundSummary();}
+  else beginPlayerMove();
 }
 function chainMove(p,steps,cb){
   p.queue=[];
@@ -930,46 +1011,50 @@ function chainMove(p,steps,cb){
   for(let k=1;k<=n;k++)p.queue.push(((p.pos+dir*k)%tiles.length+tiles.length)%tiles.length);
   p.hopFrom=null;
   hopDoneCb=()=>{spreadPieces();syncPieces();cb();};
-  phase='hopping';
+  phase='seqMove';
 }
-/* ===== 着地処理（投げ順に1人ずつ） ===== */
-function buildLandQueue(){
-  landQueue=order.map(i=>pieces[i]);
-  landIdx=0;
-  nextLanding();
+/* ===== 吹き出し（小さい効果はモーダルでなくコマの上に表示して流す） ===== */
+function chime(good){
+  if(good){beep(720,0.08,'triangle');setTimeout(()=>beep(1080,0.1,'triangle'),85);}
+  else{beep(360,0.1,'sawtooth',0.07);setTimeout(()=>beep(240,0.14,'sawtooth',0.07),95);}
 }
-function nextLanding(){
-  if(landIdx>=landQueue.length){afterLandings();return;}
-  const p=landQueue[landIdx];landIdx++;
-  processLanding(p,0);
-}
-function showLandPop(p,lines){
-  el('hint').classList.add('hidden');
-  el('resultT').textContent=p.ch.emoji+' '+p.ch.name;
-  el('resultS').innerHTML=lines.join('<br>')+'<br><span style="opacity:.6;font-size:12px">現金 '+p.cash+'万</span>';
-  el('resultTap').textContent='タップでつぎへ';
-  el('resultTap').classList.remove('hidden');
-  el('resultBtns').classList.add('hidden');
-  el('resultPop').style.display='flex';
-  phase='landWait';
+function showBalloon(p,title,body,good,next){
+  clearBalloons();
+  const t1=makeTextSprite(title,30,'#4a3f30',3.6);
+  const t2=makeTextSprite(body,34,good?'#2e8b57':'#c04040',3.1);
+  t1.position.set(p.x,3.4,p.z);
+  t2.position.set(p.x,2.35,p.z);
+  sceneBoard.add(t1,t2);balloonSps.push(t1,t2);
+  balloonNext=next;balloonT=1.6;
+  phase='balloonWait';
+  chime(good);
   updateLegend();
 }
-function showBuyPop(p,msg){
-  el('resultT').textContent=p.ch.emoji+' '+p.ch.name;
-  el('resultS').innerHTML=msg;
-  el('resultTap').classList.add('hidden');
-  el('resultBtns').classList.remove('hidden');
-  el('resultPop').style.display='flex';
-  phase='landBuy';
+function clearBalloons(){
+  for(const s of balloonSps){sceneBoard.remove(s);s.material.map.dispose();s.material.dispose();}
+  balloonSps.length=0;
 }
-function processLanding(p,depth){
+/* ===== 着地処理（一人ずつ。小さい効果は吹き出し、購入/TOBだけダイアログ） ===== */
+function afterLand(p){
+  // イベントで移動が出たら連鎖（深さ1まで）、なければ次のプレイヤーへ
+  if(chainReq){
+    const c=chainReq;chainReq=null;
+    el('hint').classList.remove('hidden');
+    el('hint').textContent=c.p.ch.emoji+c.p.ch.name+' さらに いどう！';
+    chainMove(c.p,c.steps,()=>landPlayer(c.p,1));
+    return;
+  }
+  endPlayerMove();
+}
+function landPlayer(p,depth){
   const t=tiles[p.pos];
-  const lines=[];
   if(t.type==='start'){
-    p.cash+=50;lines.push('🅢 スタート広場！ボーナス +50万');
+    p.cash+=50;reasonsRound[p.i].push('Ｓ+50');
+    showBalloon(p,'🅢 スタート広場','ボーナス +50万！',true,()=>afterLand(p));
   }else if(t.type==='bank'){
     const g=Math.round(p.cash*0.05);
-    p.cash+=g;lines.push('🏦 配当デー！現金の5% (+'+g+'万)');
+    p.cash+=g;reasonsRound[p.i].push('配当+'+g);
+    showBalloon(p,'🏦 配当デー','現金の5% +'+g+'万！',true,()=>afterLand(p));
   }else if(t.type==='tob'){
     const targets=tiles.filter(x=>x.type==='prop'&&x.owner!=null&&x.owner!==p.i);
     if(targets.length){
@@ -980,57 +1065,64 @@ function processLanding(p,depth){
         showBuyPop(p,'📈 TOBチャンス！<br>'+CHARS[tgt.owner].emoji+CHARS[tgt.owner].name+'の物件('+tgt.price+'万)を<br><b>'+cost+'万</b>で強制買収する？<br><span style="opacity:.6;font-size:12px">所持金 '+p.cash+'万</span>');
         return;
       }
-      lines.push('📈 TOBマス！でも資金不足…('+cost+'万必要)');
-    }else lines.push('📈 TOBマス！買収できる他社物件がまだない');
+      showBalloon(p,'📈 TOBマス','資金不足…('+cost+'万必要)',false,()=>afterLand(p));
+    }else showBalloon(p,'📈 TOBマス','買収できる物件がまだない',false,()=>afterLand(p));
   }else if(t.type==='event'){
     const ev=drawEvent(depth>0);
-    lines.push('🎲 <b>'+ev.name+'</b>');
-    lines.push(...applyEvent(p,ev,depth));
-  }else if(t.type==='prop'){
+    const L=applyEvent(p,ev,depth);
+    reasonsRound[p.i].push('🎲'+ev.name.slice(0,5));
+    const body=L.join(' ');
+    const good=!/-\d|もどる|手放|寄付/.test(body);
+    showBalloon(p,'🎲 '+ev.name,body,good,()=>afterLand(p));
+  }else{ // prop
     if(t.owner==null){
       if(p.cash>=t.price){
         landCtx={p,tile:t,cost:t.price,kind:'buy'};
         showBuyPop(p,'🏪 空き物件！<br><b>'+t.price+'万</b>で買う？<br><span style="opacity:.6;font-size:12px">所持金 '+p.cash+'万</span>');
         return;
       }
-      lines.push('🏪 物件('+t.price+'万)…資金不足で買えない');
+      showBalloon(p,'🏪 '+t.price+'万の物件','資金不足で買えない…',false,()=>afterLand(p));
     }else if(t.owner===p.i){
-      lines.push('🏪 自分の物件でひとやすみ');
+      showBalloon(p,'🏪 自分の物件','ひとやすみ',true,()=>afterLand(p));
+    }else if(p.shieldRent){
+      p.shieldRent=false;
+      showBalloon(p,'🏪 '+CHARS[t.owner].emoji+'の物件','交渉術で使用料タダ！',true,()=>afterLand(p));
     }else{
-      if(p.shieldRent){
-        p.shieldRent=false;
-        lines.push('🏪 '+CHARS[t.owner].emoji+CHARS[t.owner].name+'の物件！交渉術で使用料タダ！');
-      }else{
-        const rent=Math.round(t.price*RENT_RATE);
-        p.cash-=rent;pieces[t.owner].cash+=rent;
-        lines.push('🏪 '+CHARS[t.owner].emoji+CHARS[t.owner].name+'の物件！使用料 -'+rent+'万');
-        beep(300,0.08);
-      }
+      const rent=Math.round(t.price*RENT_RATE);
+      p.cash-=rent;pieces[t.owner].cash+=rent;
+      reasonsRound[p.i].push('使用料-'+rent);
+      reasonsRound[t.owner].push('受取+'+rent);
+      showBalloon(p,'🏪 '+CHARS[t.owner].emoji+CHARS[t.owner].name+'の物件','使用料 -'+rent+'万',false,()=>afterLand(p));
     }
   }
-  showLandPop(p,lines);
 }
-function onLandTap(){
-  el('resultPop').style.display='none';
-  if(chainReq){
-    const c=chainReq;chainReq=null;
-    el('hint').textContent=c.p.ch.name+'が いどう！';
-    chainMove(c.p,c.steps,()=>processLanding(c.p,1));
-    return;
-  }
-  nextLanding();
+function showBuyPop(p,msg){
+  clearBalloons();
+  el('resultT').textContent=p.ch.emoji+' '+p.ch.name;
+  el('resultS').innerHTML=msg;
+  el('resultTap').classList.add('hidden');
+  el('resultBtns').classList.remove('hidden');
+  el('resultPop').style.display='flex';
+  phase='landBuy';
 }
 function answerLandBuy(yes){
   const {p,tile,cost,kind}=landCtx;landCtx=null;
   el('resultPop').style.display='none';
   if(yes&&p.cash>=cost){
     p.cash-=cost;
-    if(kind==='tob')pieces[tile.owner].cash+=cost;   // 売られた側には現金が入る
+    if(kind==='tob'){
+      reasonsRound[p.i].push('TOB-'+cost);
+      reasonsRound[tile.owner].push('売却+'+cost);
+      pieces[tile.owner].cash+=cost;   // 売られた側には現金が入る
+    }else reasonsRound[p.i].push('購入-'+cost);
     tile.owner=p.i;
     updateTileOwnerVisual(tile);
-    beep(880,0.1,'triangle');vibrate(40);
-  }else beep(300,0.06);
-  nextLanding();
+    vibrate(40);
+    showBalloon(p,kind==='tob'?'📈 強制買収！':'🏪 購入！','じぶんの物件になった！',true,()=>afterLand(p));
+  }else{
+    beep(300,0.06);
+    afterLand(p);
+  }
 }
 /* ===== イベント適用 ===== */
 function drawEvent(noMove){
@@ -1065,27 +1157,50 @@ function applyEvent(p,ev,depth){
   }
   return L;
 }
-/* ===== 決算とラウンド送り ===== */
-function afterLandings(){
-  if(roundNo%3===0)showKessan();
-  else finishBoardRound();
-}
-function showKessan(){
-  const lines=pieces.map(p=>{
-    const income=Math.round(tiles.reduce((s,t)=>s+(t.owner===p.i?t.price:0),0)*YIELD_RATE);
-    p.cash+=income;
-    return p.ch.emoji+p.ch.name+'：物件収益 +'+income+'万';
-  });
-  const ranked=[...pieces].sort((a,b)=>assets(b)-assets(a));
+/* ===== ラウンド収支・順位発表（毎ラウンド。3/6/9/12月は決算収益も合算） ===== */
+function roundSummary(){
+  clearBalloons();
+  el('hint').classList.add('hidden');
+  const quarterly=roundNo%3===0;
+  const lines=[];
+  if(quarterly){
+    lines.push('<b>💰 四半期決算！物件収益</b>');
+    for(const p of pieces){
+      const inc=Math.round(tiles.reduce((s,t)=>s+(t.owner===p.i?t.price:0),0)*YIELD_RATE);
+      p.cash+=inc;
+      if(inc)reasonsRound[p.i].push('決算+'+inc);
+      lines.push(p.ch.emoji+' +'+inc+'万');
+    }
+    lines.push('<hr style="opacity:.3">');
+  }
+  lines.push('<b>このラウンドの収支</b>');
+  for(const p of pieces){
+    const d=p.cash-cashStart[p.i];
+    const rs=reasonsRound[p.i].slice(0,3).join('・');
+    const col=d>=0?'#2e8b57':'#c04040';
+    lines.push(p.ch.emoji+p.ch.name+'：<b style="color:'+col+'">'+(d>=0?'+':'')+d+'万</b>'+(rs?'<span style="opacity:.65;font-size:11px">（'+rs+(reasonsRound[p.i].length>3?'…':'')+'）</span>':''));
+  }
   lines.push('<hr style="opacity:.3">');
-  ranked.forEach((p,i)=>lines.push((i+1)+'位 '+p.ch.emoji+p.ch.name+'　総資産 '+assets(p)+'万'));
-  el('resultT').textContent='💰 '+MONTHS[roundNo-1]+' 四半期決算！';
+  const ranked=[...pieces].sort((a,b)=>assets(b)-assets(a));
+  const newRanks={};
+  ranked.forEach((p,i)=>{newRanks[p.i]=i+1;});
+  ranked.forEach((p,i)=>{
+    let mark='';
+    if(prevRanks){
+      const pr=prevRanks[p.i];
+      if(pr>i+1)mark=' <span style="color:#2e8b57">▲UP</span>';
+      else if(pr<i+1)mark=' <span style="color:#c04040">▼DOWN</span>';
+    }
+    lines.push((i+1)+'位 '+p.ch.emoji+p.ch.name+'　総資産 '+assets(p)+'万'+mark);
+  });
+  prevRanks=newRanks;
+  el('resultT').textContent='📊 '+MONTHS[roundNo-1]+'のまとめ'+(quarterly?'＋決算':'');
   el('resultS').innerHTML=lines.join('<br>');
   el('resultTap').textContent='タップでつぎへ';
   el('resultTap').classList.remove('hidden');
   el('resultBtns').classList.add('hidden');
   el('resultPop').style.display='flex';
-  phase='kessanWait';
+  phase='summaryWait';
   beep(660,0.1,'triangle');setTimeout(()=>beep(880,0.1,'triangle'),110);setTimeout(()=>beep(1100,0.14,'triangle'),220);
   vibrate(70);
 }
@@ -1118,25 +1233,50 @@ function showGameEnd(){
 }
 function resetAll(){
   el('resultPop').style.display='none';
+  clearBalloons();
   for(const d of dice)if(!d.removed)removeDie(d);
   dice.length=0;
   for(const t of tiles){t.owner=null;if(t.type==='prop')t.price=200+((t.idx*7)%9)*50;updateTileOwnerVisual(t);}
-  for(const p of pieces){p.cash=START_CASH;p.pos=0;p.doubleNext=false;p.shieldRent=false;p.queue=[];p.hopFrom=null;p.y=0;}
+  for(const p of pieces){p.cash=START_CASH;p.pos=0;p.doubleNext=false;p.shieldRent=false;p.queue=[];p.hopFrom=null;p.y=0;p.plannedSteps=0;}
   spreadPieces();syncPieces();
   roundNo=1;throwIdx=0;order=[0,1,2,3,4];evDeck=[];
+  prevRanks=null;seqIdx=0;chainReq=null;landCtx=null;
   showTurn();
 }
 
-/* ===== 手番フロー ===== */
+/* ===== 手番フロー（盤で行き先プレビュー→お椀で投げ） ===== */
 function showTurn(){
-  const ch=CHARS[order[throwIdx]];
+  const i=order[throwIdx],ch=CHARS[i],pc=pieces[i];
   el('roundB').classList.remove('hidden');
   el('legend').classList.remove('hidden');
-  el('roundB').textContent=MONTHS[roundNo-1]+'('+roundNo+'/'+MAX_ROUNDS+')　'+(throwIdx+1)+'/5人目';
+  const queue=order.slice(throwIdx+1).map(x=>CHARS[x].emoji).join('');
+  el('roundB').textContent=MONTHS[roundNo-1]+'('+roundNo+'/'+MAX_ROUNDS+')　'+(throwIdx+1)+'/5人目'+(queue?'　つぎ→'+queue:'');
   el('turnB').classList.remove('hidden');
   el('turnName').textContent=ch.emoji+ch.name+'の番！';
-  const pc=pieces[order[throwIdx]];
   el('turnSub').textContent='💰'+(pc?pc.cash:START_CASH)+'万　スマホを渡してね';
+  startPreview(pc);
+}
+/* 手番前: 盤を見せて「出目1〜6でとまりうるマス」を光らせる（出目の意味を先に伝える） */
+function startPreview(p){
+  prevCands=[];
+  const mult=p.doubleNext?2:1;
+  for(let f=1;f<=6;f++)prevCands.push(tiles[(p.pos+f*mult)%tiles.length]);
+  boardMarker.visible=true;
+  boardMarker.position.set(p.x,2.2,p.z);
+  el('throwBtn').style.display='none';
+  el('hint').classList.remove('hidden');
+  el('hint').textContent='ひかっているマスの どれかにとまる！（タップで投げへ）';
+  previewT=2.6;
+  phase='previewBoard';
+  beep(560,0.06,'sine');
+}
+function endPreview(){
+  for(const t of prevCands){t.mesh.material.emissive.setHex(0x000000);t.mesh.material.emissiveIntensity=1;}
+  prevCands=[];
+  boardMarker.visible=false;
+  bowlThrowUI();
+}
+function bowlThrowUI(){
   el('hint').classList.remove('hidden');
   if(mode==='sensor'){
     el('throwBtn').style.display='block';
@@ -1195,8 +1335,9 @@ function bindInput(){
   window.addEventListener('pointerdown',e=>{
     if(onUI(e))return;
     if(phase==='roundResult'){startBoardPhase();return;}
-    if(phase==='landWait'){onLandTap();return;}
-    if(phase==='kessanWait'){finishBoardRound();return;}
+    if(phase==='previewBoard'){endPreview();return;}
+    if(phase==='seqMove'||phase==='balloonWait'){fastFwd=true;return;}
+    if(phase==='summaryWait'){finishBoardRound();return;}
     if(phase==='gameEnd'){resetAll();return;}
     if(phase!=='await'||mode!=='finger')return;
     dragOn=true;dragSX=e.clientX;dragSY=e.clientY;dragPow=0;
@@ -1231,6 +1372,7 @@ function syncDice(){
     d.mesh.position.set(d.x,y,d.z);
     d.mesh.quaternion.copy(d.q);
     d.label.position.set(d.x,y+1.5,d.z);   // サイコロにかぶらないよう高めに浮かせる
+    if(d.destSp)d.destSp.position.set(d.x,y+0.78,d.z);   // 行き先チップは数字の下
   }
 }
 let settleGrace=0,moveTimeout=0;
@@ -1277,12 +1419,30 @@ function loop(){
     betweenT-=dtRaw;
     if(betweenT<=0)showTurn();
     moveTimeout=0;
-  }else if(phase==='hopping'){
-    if(!stepHops(dt)){
+  }else if(phase==='seqMove'){
+    if(!stepHops(dt*(fastFwd?3:1))){
       const cb=hopDoneCb;hopDoneCb=null;
       if(cb)cb();
     }
     syncPieces();
+    moveTimeout=0;
+  }else if(phase==='balloonWait'){
+    balloonT-=dtRaw*(fastFwd?3:1);
+    if(balloonT<=0){
+      const n=balloonNext;balloonNext=null;
+      clearBalloons();
+      if(n)n();
+    }
+    moveTimeout=0;
+  }else if(phase==='previewBoard'){
+    previewT-=dtRaw;
+    // 行き先候補マスを金色にパルス発光させる
+    const glow=0.3+0.35*(0.5+0.5*Math.sin(now/130));
+    for(const t of prevCands){
+      t.mesh.material.emissive.setHex(0xffb020);
+      t.mesh.material.emissiveIntensity=glow;
+    }
+    if(previewT<=0)endPreview();
     moveTimeout=0;
   }else{
     if(dice.length&&!onBoardPhase())stepPhysics(dt);
@@ -1303,13 +1463,21 @@ function loop(){
   updateAimArrow(showAim&&!onBoard);
   updateLegend();
 
-  // カメラ（お椀は固定+シェイク、盤はfitCamで設定済み）
+  // カメラ（お椀は固定+シェイク、盤は追従lerp）
   let sx=0,sy=0;
   if(shakeT>0){shakeT-=dtRaw;sx=(Math.random()-0.5)*shakeA;sy=(Math.random()-0.5)*shakeA;}
   camera.position.set(camBase.x+sx,camBase.y+sy,camBase.z);
   camera.lookAt(0,0.3,-0.2);
-  // 雲をゆっくり流す
   if(onBoard){
+    updateBoardCam(dtRaw);
+    if(boardMarker&&boardMarker.visible&&seqIdx<order.length&&phase!=='previewBoard'){
+      const p=pieces[order[seqIdx]];
+      boardMarker.position.set(p.x,2.0+Math.sin(now/280)*0.16,p.z);
+    }else if(boardMarker&&boardMarker.visible&&phase==='previewBoard'){
+      const p=pieces[order[throwIdx]];
+      boardMarker.position.set(p.x,2.0+Math.sin(now/280)*0.16,p.z);
+    }
+    // 雲をゆっくり流す
     const hw=GRID.cols*GRID.cell/2+3;
     for(const cl of clouds){cl.position.x+=dtRaw*0.4;if(cl.position.x>hw)cl.position.x=-hw;}
   }
@@ -1333,6 +1501,7 @@ function bindDbg(){
   el('resetBtn').onclick=()=>{
     for(const d of dice)if(!d.removed)removeDie(d);
     dice.length=0;throwIdx=0;
+    clearBalloons();chainReq=null;landCtx=null;
     el('resultPop').style.display='none';
     showTurn();beep(520,0.06);
   };
