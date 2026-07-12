@@ -1,0 +1,729 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>なげこま(仮) お椀プロト</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&display=swap" rel="stylesheet">
+<style>
+  :root{--line:#cdbfa5;--txt:#4a3f30}
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;overflow:hidden;background:#2e4636}
+  body{font-family:'Zen Maru Gothic',sans-serif;color:var(--txt);-webkit-user-select:none;user-select:none;touch-action:none;overscroll-behavior:none}
+  #app{position:fixed;inset:0}
+  canvas{display:block}
+  .hud{position:fixed;pointer-events:none;z-index:6}
+  #turnB{top:10px;left:50%;transform:translateX(-50%);background:rgba(255,252,242,.94);border:2px solid var(--line);border-radius:16px;padding:8px 20px;text-align:center;box-shadow:0 4px 14px rgba(0,0,0,.3)}
+  #turnName{font-size:18px;font-weight:900;line-height:1.2}
+  #turnSub{font-size:11px;font-weight:700;opacity:.75}
+  #roundB{top:12px;left:10px;background:rgba(255,252,242,.9);border:2px solid var(--line);border-radius:12px;padding:6px 12px;font-size:12px;font-weight:900}
+  #hint{bottom:118px;left:50%;transform:translateX(-50%);font-size:13px;font-weight:900;color:#fff;background:rgba(30,40,32,.75);border-radius:999px;padding:7px 18px;white-space:nowrap}
+  #throwBtn{position:fixed;bottom:26px;left:50%;transform:translateX(-50%);z-index:7;pointer-events:auto;cursor:pointer;font-family:inherit;font-size:22px;font-weight:900;color:#fff;background:linear-gradient(180deg,#e8747c,#c74850);border:none;border-radius:999px;padding:16px 46px;box-shadow:0 10px 24px rgba(0,0,0,.4);display:none}
+  #throwBtn:active{transform:translate(-50%,2px)}
+  #throwBtn.arm{background:linear-gradient(180deg,#ffce4a,#e8a030);animation:pulse .5s infinite alternate}
+  @keyframes pulse{0%{box-shadow:0 10px 24px rgba(0,0,0,.4)}100%{box-shadow:0 10px 34px rgba(255,206,74,.8)}}
+  #powerWrap{bottom:96px;left:50%;transform:translateX(-50%);width:min(60vw,240px);height:14px;border-radius:8px;background:rgba(255,252,242,.85);border:2px solid var(--line);overflow:hidden;display:none;z-index:7}
+  #powerFill{height:100%;width:0%;background:linear-gradient(90deg,#7ed6a0,#ffce4a,#ff6a5a);border-radius:6px}
+  #resultPop{position:fixed;inset:0;z-index:14;display:none;align-items:center;justify-content:center;pointer-events:auto;background:rgba(0,0,0,.25)}
+  #resultCard{background:rgba(255,252,242,.97);border:3px solid var(--line);border-radius:20px;padding:20px 26px;text-align:center;max-width:86vw;max-height:80vh;overflow:auto;box-shadow:0 14px 40px rgba(0,0,0,.4);animation:popin .28s ease-out}
+  @keyframes popin{0%{transform:scale(.6);opacity:0}100%{transform:scale(1);opacity:1}}
+  #resultT{font-size:20px;font-weight:900;margin-bottom:6px}
+  #resultS{font-size:14px;font-weight:700;line-height:2.0;opacity:.9;text-align:left}
+  #resultTap{font-size:11px;font-weight:700;opacity:.5;margin-top:10px}
+  #dbgBtn{position:fixed;top:10px;right:10px;z-index:8;pointer-events:auto;cursor:pointer;width:36px;height:36px;border-radius:50%;border:2px solid var(--line);background:rgba(255,252,242,.92);color:var(--txt);font-weight:900;font-size:16px;font-family:inherit}
+  #dbg{position:fixed;top:54px;right:8px;z-index:8;background:rgba(255,252,242,.96);border:2px solid var(--line);border-radius:14px;padding:10px 12px;width:240px;font-size:11px;font-weight:700;max-height:78vh;overflow:auto;pointer-events:auto}
+  #dbg label{display:block;margin-top:7px}
+  #dbg input[type=range]{width:100%}
+  #dbg .dv{color:#2e8b57}
+  #dbg .dbtn{margin-top:8px;width:100%;padding:6px;border-radius:8px;border:1px solid var(--line);background:#fff;font-family:inherit;font-weight:900;cursor:pointer}
+  .overlay{position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 30%,rgba(60,90,70,.92),rgba(20,32,24,.97));backdrop-filter:blur(3px);padding:16px}
+  .card{width:min(94vw,440px);max-height:92vh;overflow:auto;background:linear-gradient(165deg,#fffdf4,#f4ecd8);border:3px solid var(--line);border-radius:24px;padding:28px 22px;text-align:center;box-shadow:0 24px 60px rgba(0,0,0,.5)}
+  .logo{font-size:34px;font-weight:900;line-height:1.15;letter-spacing:1px}
+  .logo .a{color:#e8954f}.logo .k{color:#5fae7a;font-size:20px}
+  .sub{font-size:12.5px;opacity:.8;margin:10px 0 14px;font-weight:700;line-height:1.8}
+  .rules{text-align:left;background:rgba(95,174,122,.1);border:2px solid rgba(95,174,122,.35);border-radius:14px;padding:12px 14px;font-size:12px;line-height:2.0;margin-bottom:16px;font-weight:700}
+  .rules b{color:#2e8b57}.rules i{color:#d8862e;font-style:normal}
+  .btn{cursor:pointer;font-family:inherit;font-size:18px;font-weight:900;color:#fff;background:linear-gradient(180deg,#78c896,#4f9e6c);border:none;border-radius:16px;padding:13px 30px;box-shadow:0 8px 20px rgba(79,158,108,.45);transition:.08s;display:block;width:100%;margin-top:10px}
+  .btn:active{transform:translateY(2px)}
+  .btn.sub2{background:linear-gradient(180deg,#e8b06a,#cf8c3e);box-shadow:0 8px 20px rgba(207,140,62,.4)}
+  .note{font-size:10.5px;opacity:.6;margin-top:14px;line-height:1.8;font-weight:700}
+  .hidden{display:none!important}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="roundB" class="hud hidden">R1</div>
+<div id="turnB" class="hud hidden"><div id="turnName">-</div><div id="turnSub">-</div></div>
+<div id="hint" class="hud hidden">-</div>
+<div id="powerWrap" class="hud"><div id="powerFill"></div></div>
+<button id="throwBtn">🎲 投げる！</button>
+<button id="dbgBtn" class="hidden">⚙</button>
+<div id="dbg" class="hidden">
+  <b>⚙ お椀・サイコロ調整</b>
+  <label>スナップ発動しきい <span class="dv" id="v_spikeThr"></span><input type="range" id="s_spikeThr" min="40" max="220" step="5"></label>
+  <label>スナップ最大(MAXパワー) <span class="dv" id="v_spikeMax"></span><input type="range" id="s_spikeMax" min="140" max="500" step="10"></label>
+  <label>指ひっぱり最大(px) <span class="dv" id="v_dragMax"></span><input type="range" id="s_dragMax" min="80" max="340" step="10"></label>
+  <label>投げ初速MIN <span class="dv" id="v_throwVMin"></span><input type="range" id="s_throwVMin" min="2" max="10" step="0.5"></label>
+  <label>投げ初速MAX <span class="dv" id="v_throwVMax"></span><input type="range" id="s_throwVMax" min="8" max="26" step="0.5"></label>
+  <label>すり鉢の傾斜力 <span class="dv" id="v_slope"></span><input type="range" id="s_slope" min="4" max="30" step="1"></label>
+  <label>まさつ <span class="dv" id="v_fric"></span><input type="range" id="s_fric" min="0.4" max="2.6" step="0.1"></label>
+  <label>サイコロ反発 <span class="dv" id="v_rest"></span><input type="range" id="s_rest" min="0.2" max="1" step="0.05"></label>
+  <label>静止サイコロの重さ(動きにくさ) <span class="dv" id="v_settledDamp"></span><input type="range" id="s_settledDamp" min="0.3" max="1" step="0.05"></label>
+  <label>センサー受付秒数 <span class="dv" id="v_senseWindow"></span><input type="range" id="s_senseWindow" min="1.5" max="5" step="0.5"></label>
+  <label style="display:flex;gap:6px;align-items:center;margin-top:10px"><input type="checkbox" id="c_collect" style="width:auto">純チンチロ（投げるたび回収）</label>
+  <div style="margin-top:8px;opacity:.75">センサー生値: <span id="v_now">-</span></div>
+  <button class="dbtn" id="resetBtn">↺ ラウンドをやり直す</button>
+  <button class="dbtn" id="tuneResetBtn">係数を初期値にもどす</button>
+</div>
+
+<div id="start" class="overlay">
+  <div class="card">
+    <div class="logo">なげ<span class="a">こま</span> <span class="k">お椀プロト</span></div>
+    <div class="sub">チンチロ式・お椀にサイコロを振り入れるのだ<br>投げの手応えを検証するミニプロトなのだ</div>
+    <div class="rules">
+      🎲 <b>「投げる！」をタップ</b>（押し続け不要）→ <b>手首をくいっ</b>でサイコロ発射！<br>
+      🥣 サイコロは<b>お椀に残る</b>。後から投げて先客に当てると<b>出目が転がり直る</b><br>
+      💪 <b>そっと</b>=手前で安全に停止／<b>強く</b>=奥の密集地帯で妨害。<i>強すぎると場外＝ションベン(出目0)</i><br>
+      🏆 5社ぜんいん投げたら出目が確定（本番ではこの目でコマがすごろく盤を進む）<br>
+      🔁 投げ順は毎ラウンドずれる（本番は資産ウェーバー順＝ビリが最後で有利）
+    </div>
+    <button class="btn" id="startBtn">📱 センサーで遊ぶ</button>
+    <button class="btn sub2" id="fingerBtn">👆 指で遊ぶ（ひっぱりの強さだけ）</button>
+    <div class="note">iPhoneは「動作と方向」の許可が出るのだ。HTTPS必須。キャリブレーションは不要になったのだ。<br>⚙で椀の傾斜・摩擦・スナップ感度を実機調整してほしいのだ。</div>
+  </div>
+</div>
+
+<div id="resultPop"><div id="resultCard"><div id="resultT">-</div><div id="resultS">-</div><div id="resultTap">タップでつぎのラウンドへ</div></div></div>
+
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import {RoundedBoxGeometry} from 'three/addons/geometries/RoundedBoxGeometry.js';
+
+/* ===== 調整パラメータ（⚙パネルで実機調整する） ===== */
+const TUNE_DEF={
+  spikeThr:90,      // 投擲発動の回転レートしきい(deg/s)
+  spikeMax:260,     // この回転レートで最大パワー（上限キャップ）
+  dragMax:200,      // 指モード: この引き距離(px)で最大パワー
+  throwVMin:5,      // 最弱投げの初速
+  throwVMax:16,     // 最強投げの初速（強すぎると場外リスク）
+  slope:14,         // すり鉢の傾斜力（中心へ戻す加速度の係数）
+  fric:1.1,         // 転がり摩擦（速度の指数減衰/s）
+  rest:0.6,         // サイコロ同士の反発係数
+  settledDamp:0.75, // 静止サイコロが弾かれたときの速度倍率（1=軽い、小さいほど重い）
+  senseWindow:2.5,  // ボタン後にセンサー投げを受け付ける秒数
+};
+let TUNE={...TUNE_DEF};
+try{const s=JSON.parse(localStorage.getItem('owan_tune')||'null');if(s)TUNE={...TUNE_DEF,...s};}catch(e){}
+let collectEach=false;   // 純チンチロ後退フラグ（投げるたび回収）
+
+/* ===== お椀ジオメトリ定数 ===== */
+const BOWL={
+  rimR:4.6,     // 椀のふち半径（ここを越えたら場外）
+  flatR:1.8,    // 底の平らな部分の半径（サイコロが自然に散らばる場所）
+  rimH:2.1,     // ふちの高さ
+  dieR:0.55,    // サイコロの当たり半径（2D円として扱う）
+  dieSize:1.0,  // サイコロの見た目一辺
+};
+const ENTRY_R=4.15;      // サイコロ投入位置（ふちの内側すぐ）
+const SETTLE_V=0.05;     // この速度以下で静止扱い
+const SNAP_T=0.16;       // 出目確定時の姿勢スナップ秒数
+
+/* ===== 5社の定義 ===== */
+const CHARS=[
+  {id:'kuma',   name:'くま社長',   color:0xb9855a},
+  {id:'kitsune',name:'きつね社長', color:0xe8954f},
+  {id:'usagi',  name:'うさぎ社長', color:0xf0d5cc},
+  {id:'kotori', name:'ことり社長', color:0xf2d05e},
+  {id:'kame',   name:'かめ社長',   color:0x7cc47f},
+];
+
+/* ===== 状態 ===== */
+let scene,camera,renderer;
+let mode=null;               // 'sensor' | 'finger'
+let phase='menu';            // menu|await|armed|moving|betweenThrows|roundResult
+let dice=[];                 // このラウンドに投げ込まれたサイコロ
+let roundNo=1,throwIdx=0;    // throwIdx: このラウンドで何人目の投げか
+let order=[0,1,2,3,4];       // 投げ順（毎ラウンド1つずつローテ。本番は資産ウェーバー順）
+let armTimer=0;
+let dragOn=false,dragSX=0,dragSY=0,dragPow=0;
+let spikeCap=null,throwCd=0;
+let events=[];               // この投擲の出来事ログ
+let facesBefore=new Map();   // 投擲前の各サイコロの出目（変化検出用）
+let betweenT=0;
+let hitstopT=0,shakeT=0,shakeA=0;
+let rotBeta=0,rotPeak=0,lastG={x:0,y:0,z:9.8};
+let prevT=0,rattleCd=0;
+const el=id=>document.getElementById(id);
+
+/* ===== 音（WebAudioビープ合成） ===== */
+let actx=null;
+function beep(f,d,type='square',g0=0.12){try{actx=actx||new(window.AudioContext||window.webkitAudioContext)();}catch(e){return;}if(actx.state==='suspended')actx.resume();const o=actx.createOscillator(),g=actx.createGain();o.type=type;o.frequency.value=f;g.gain.setValueAtTime(0.0001,actx.currentTime);g.gain.exponentialRampToValueAtTime(g0,actx.currentTime+0.01);g.gain.exponentialRampToValueAtTime(0.0001,actx.currentTime+d);o.connect(g).connect(actx.destination);o.start();o.stop(actx.currentTime+d+0.02);}
+/* サイコロのカラカラ音: 短いノイズバースト */
+function rattle(gain=0.1){
+  try{actx=actx||new(window.AudioContext||window.webkitAudioContext)();}catch(e){return;}
+  if(actx.state==='suspended')actx.resume();
+  const len=Math.floor(actx.sampleRate*0.03);
+  const b=actx.createBuffer(1,len,actx.sampleRate),ch=b.getChannelData(0);
+  for(let i=0;i<len;i++)ch[i]=(Math.random()*2-1)*(1-i/len);
+  const n=actx.createBufferSource();n.buffer=b;
+  const g=actx.createGain();g.gain.setValueAtTime(gain,actx.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001,actx.currentTime+0.05);
+  const f=actx.createBiquadFilter();f.type='highpass';f.frequency.value=1200;
+  n.connect(f).connect(g).connect(actx.destination);n.start();
+}
+function vibrate(ms){if(navigator.vibrate)try{navigator.vibrate(ms);}catch(e){}}
+
+/* ===== ヘルパ ===== */
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const lerp=(a,b,t)=>a+(b-a)*t;
+
+/* ===== Three 初期化 ===== */
+function init3(){
+  scene=new THREE.Scene();
+  scene.background=new THREE.Color(0x2e4636);
+  camera=new THREE.PerspectiveCamera(46,innerWidth/innerHeight,0.1,100);
+  fitCam();
+  renderer=new THREE.WebGLRenderer({antialias:true});
+  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  renderer.setSize(innerWidth,innerHeight);
+  renderer.outputColorSpace=THREE.SRGBColorSpace;
+  el('app').appendChild(renderer.domElement);
+  scene.add(new THREE.HemisphereLight(0xfff6e0,0x3a4a3e,1.0));
+  const sun=new THREE.DirectionalLight(0xfff2d0,1.2);sun.position.set(4,12,6);scene.add(sun);
+  buildTableAndBowl();
+  buildOrientations();
+  prevT=performance.now();loop();
+}
+let camBase={x:0,y:10.5,z:9.5};
+function fitCam(){
+  const a=innerWidth/innerHeight;
+  camera.aspect=a;
+  const s=a>=0.75?1:(0.8/a);   // 縦長画面では少し引く
+  camBase={x:0,y:10.5*s,z:9.5*s};
+  camera.updateProjectionMatrix();
+}
+
+/* ===== 卓とお椀 ===== */
+/* 椀の内面の高さ: 底は平ら、flatRから外は放物線でせり上がる */
+function bowlY(r){
+  if(r<=BOWL.flatR)return 0;
+  const k=(r-BOWL.flatR)/(BOWL.rimR-BOWL.flatR);
+  return k*k*BOWL.rimH;
+}
+function buildTableAndBowl(){
+  // 卓（畳っぽい緑のフェルト）
+  const table=new THREE.Mesh(new THREE.CylinderGeometry(14,14,0.5,36),
+    new THREE.MeshStandardMaterial({color:0x3d5c48,roughness:1}));
+  table.position.y=-0.85;scene.add(table);
+  // お椀: LatheGeometryで内外面を一体に
+  const pts=[];
+  const N=18;
+  pts.push(new THREE.Vector2(0,-0.3));
+  for(let i=0;i<=N;i++){const r=(i/N)*BOWL.rimR;pts.push(new THREE.Vector2(Math.max(r,0.01),bowlY(r)));}
+  pts.push(new THREE.Vector2(BOWL.rimR+0.35,BOWL.rimH+0.05));  // ふちの厚み
+  pts.push(new THREE.Vector2(BOWL.rimR+0.4,BOWL.rimH-0.3));
+  pts.push(new THREE.Vector2(BOWL.rimR*0.55,-0.55));           // 外側面
+  pts.push(new THREE.Vector2(BOWL.rimR*0.5,-0.6));
+  const bowl=new THREE.Mesh(new THREE.LatheGeometry(pts,48),
+    new THREE.MeshStandardMaterial({color:0x8a4a2e,roughness:0.55,side:THREE.DoubleSide}));
+  scene.add(bowl);
+  // 内側の底に飾り円（漆器の金環イメージ）
+  const ring=new THREE.Mesh(new THREE.RingGeometry(BOWL.flatR*0.82,BOWL.flatR*0.95,40),
+    new THREE.MeshBasicMaterial({color:0xd8a848,transparent:true,opacity:0.5}));
+  ring.rotation.x=-Math.PI/2;ring.position.y=0.012;scene.add(ring);
+}
+
+/* ===== サイコロ ===== */
+/* 面テクスチャ: 社長カラーの地に目玉（1は赤）。どの地色でも見えるよう白フチ付き */
+const PIP_POS={
+  1:[[0,0]],
+  2:[[-1,-1],[1,1]],
+  3:[[-1,-1],[0,0],[1,1]],
+  4:[[-1,-1],[-1,1],[1,-1],[1,1]],
+  5:[[-1,-1],[-1,1],[0,0],[1,-1],[1,1]],
+  6:[[-1,-1],[-1,0],[-1,1],[1,-1],[1,0],[1,1]],
+};
+function makeFaceTexture(n,colorHex){
+  const c=document.createElement('canvas');c.width=c.height=128;
+  const x=c.getContext('2d');
+  x.fillStyle='#'+colorHex.toString(16).padStart(6,'0');
+  x.fillRect(0,0,128,128);
+  // ほんのり縁を暗く
+  x.strokeStyle='rgba(0,0,0,.18)';x.lineWidth=10;x.strokeRect(0,0,128,128);
+  for(const[px,py]of PIP_POS[n]){
+    const cx=64+px*30,cy=64+py*30;
+    x.beginPath();x.arc(cx,cy,13,0,Math.PI*2);
+    x.fillStyle=n===1?'#c73838':'#2b2118';
+    x.fill();
+    x.lineWidth=3;x.strokeStyle='rgba(255,255,255,.85)';x.stroke();
+  }
+  const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;
+  return t;
+}
+/* BoxGeometryの面順 [+x,-x,+y,-y,+z,-z] への目の割当（対面の和=7） */
+const FACE_OF_AXIS=[3,4,1,6,2,5];
+const AXES=[new THREE.Vector3(1,0,0),new THREE.Vector3(-1,0,0),new THREE.Vector3(0,1,0),new THREE.Vector3(0,-1,0),new THREE.Vector3(0,0,1),new THREE.Vector3(0,0,-1)];
+const dieMats={};
+function matsFor(ch){
+  if(!dieMats[ch.id]){
+    dieMats[ch.id]=FACE_OF_AXIS.map(n=>new THREE.MeshStandardMaterial({map:makeFaceTexture(n,ch.color),roughness:0.5}));
+  }
+  return dieMats[ch.id];
+}
+const dieGeo=new RoundedBoxGeometry(BOWL.dieSize,BOWL.dieSize,BOWL.dieSize,3,0.13);
+/* 出目ラベルスプライト（サイコロの上に浮かべる数字） */
+function makeLabelSprite(){
+  const c=document.createElement('canvas');c.width=c.height=128;
+  const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;
+  const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:t,transparent:true,depthWrite:false}));
+  sp.scale.set(1.1,1.1,1);sp.visible=false;
+  return sp;
+}
+function drawLabel(die,txt,colorCss){
+  const c=die.label.material.map.image;
+  const x=c.getContext('2d');
+  x.clearRect(0,0,128,128);
+  x.beginPath();x.arc(64,64,52,0,Math.PI*2);
+  x.fillStyle='rgba(255,252,242,.95)';x.fill();
+  x.lineWidth=8;x.strokeStyle=colorCss;x.stroke();
+  x.font="bold 64px 'Zen Maru Gothic',sans-serif";
+  x.textAlign='center';x.textBaseline='middle';
+  x.fillStyle=txt==='✕'?'#c73838':'#3a2f22';
+  x.fillText(txt,64,68);
+  die.label.material.map.needsUpdate=true;
+  die.label.visible=true;
+}
+/* 24通りの軸整列姿勢（停止時に最も近い姿勢へスナップする） */
+let ORIENTS=[];
+function buildOrientations(){
+  const seen=[];
+  for(let i=0;i<4;i++)for(let j=0;j<4;j++)for(let k=0;k<4;k++){
+    const q=new THREE.Quaternion().setFromEuler(new THREE.Euler(i*Math.PI/2,j*Math.PI/2,k*Math.PI/2));
+    if(!seen.some(s=>Math.abs(s.dot(q))>0.999))seen.push(q);
+  }
+  ORIENTS=seen;   // 24個になる
+}
+function faceUpValue(q){
+  let best=-2,idx=2;
+  const v=new THREE.Vector3();
+  AXES.forEach((ax,i)=>{
+    v.copy(ax).applyQuaternion(q);
+    if(v.y>best){best=v.y;idx=i;}
+  });
+  return FACE_OF_AXIS[idx];
+}
+function nearestOrient(q){
+  let best=null,bd=-2;
+  for(const o of ORIENTS){
+    const d=Math.abs(o.dot(q));
+    if(d>bd){bd=d;best=o;}
+  }
+  // dotが負なら符号反転した方が近い（同じ回転を表す）
+  return best.dot(q)<0?best.clone().multiplyScalar(-1):best.clone();
+}
+
+/* ===== サイコロの生成と投擲 ===== */
+function spawnDie(chIdx,power){
+  const ch=CHARS[chIdx];
+  const mesh=new THREE.Mesh(dieGeo,matsFor(ch));
+  scene.add(mesh);
+  const label=makeLabelSprite();scene.add(label);
+  const jx=(Math.random()-0.5)*1.4;                 // 入射位置の揺らぎ
+  const aimJ=(Math.random()-0.5)*0.24;              // 方向の揺らぎ（狙い操作はなし）
+  const v0=lerp(TUNE.throwVMin,TUNE.throwVMax,power);
+  const d={
+    owner:chIdx,ch,mesh,label,
+    x:jx,z:ENTRY_R,                                  // 手前（プレイヤー側）のふちから入る
+    vx:Math.sin(aimJ)*v0*0.3+(Math.random()-0.5)*0.6,
+    vz:-Math.cos(aimJ)*v0,
+    state:'roll',                                    // roll|settled|out|gone
+    face:0,q:new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.random()*3,Math.random()*3,Math.random()*3)),
+    snapT:0,snapFrom:null,snapTo:null,
+    outT:0,outVy:0,outY:0,
+  };
+  dice.push(d);
+  rattle(0.14);
+  return d;
+}
+function doThrow(power){
+  const chIdx=order[throwIdx];
+  events.length=0;
+  // 投擲前の出目を記録（当てられて変わったか検出する）
+  facesBefore=new Map(dice.filter(d=>d.state==='settled').map(d=>[d,d.face]));
+  spawnDie(chIdx,power);
+  spikeCap=null;throwCd=0.6;
+  el('throwBtn').style.display='none';
+  el('powerWrap').style.display='none';
+  el('hint').classList.remove('hidden');
+  el('hint').textContent='パワー '+Math.round(power*100)+'%！';
+  phase='moving';
+  beep(620,0.08,'triangle');
+  vibrate(30);
+}
+
+/* ===== 物理 ===== */
+function stepPhysics(dt){
+  for(const d of dice){
+    if(d.removed)continue;
+    if(d.state==='roll'){
+      const r=Math.hypot(d.x,d.z)||1e-6;
+      // すり鉢の傾斜力: flatRの外では中心へ戻される（強い投げだけがふちに届く）
+      if(r>BOWL.flatR){
+        const k=(r-BOWL.flatR)/(BOWL.rimR-BOWL.flatR);
+        const a=TUNE.slope*k;
+        d.vx-=d.x/r*a*dt;d.vz-=d.z/r*a*dt;
+      }
+      const f=Math.exp(-TUNE.fric*dt);
+      d.vx*=f;d.vz*=f;
+      let sp=Math.hypot(d.vx,d.vz);
+      if(sp<0.8){const k2=Math.max(0,sp-1.2*dt)/(sp||1);d.vx*=k2;d.vz*=k2;sp=Math.hypot(d.vx,d.vz);}
+      d.x+=d.vx*dt;d.z+=d.vz*dt;
+      const r2=Math.hypot(d.x,d.z);
+      // ふちを越えたら場外（ションベン）
+      if(r2>BOWL.rimR){
+        d.state='out';d.outT=0;d.outVy=2.6;d.outY=bowlY(BOWL.rimR);
+        d.face=0;
+        const who=d.ch.name;
+        events.push(d.owner===order[throwIdx]?who+'：ションベン！(場外) 出目0':who+'のサイコロが場外へ！ションベン！');
+        beep(160,0.25,'sawtooth');vibrate(80);
+        continue;
+      }
+      // 転がり見た目: 速度に応じてキューブを回す
+      if(sp>0.05){
+        const axis=new THREE.Vector3(d.vz,0,-d.vx).normalize();
+        const dq=new THREE.Quaternion().setFromAxisAngle(axis,sp*dt/(BOWL.dieSize/2));
+        d.q.premultiply(dq);
+        if(rattleCd<=0&&sp>2.5){rattle(0.05+Math.min(0.06,sp*0.006));rattleCd=0.09;}
+      }
+      // 静止判定→出目確定（いまの姿勢で一番上を向いている面が出目）
+      if(sp<=SETTLE_V){
+        d.vx=0;d.vz=0;
+        d.face=faceUpValue(d.q);
+        d.state='settled';
+        d.snapFrom=d.q.clone();d.snapTo=nearestOrient(d.q);d.snapT=0;
+        rattle(0.12);
+      }
+    }else if(d.state==='settled'&&d.snapTo){
+      // 停止直後: 最寄りの整列姿勢へカタッとスナップ
+      d.snapT+=dt;
+      const t=Math.min(1,d.snapT/SNAP_T);
+      d.q.slerpQuaternions(d.snapFrom,d.snapTo,t);
+      if(t>=1){
+        d.q.copy(d.snapTo);d.snapTo=null;
+        drawLabel(d,''+d.face,'#'+d.ch.color.toString(16).padStart(6,'0'));
+        beep(840,0.05,'sine');
+      }
+    }else if(d.state==='out'){
+      // ふちを飛び越えて卓に落ちる演出
+      d.outT+=dt;
+      d.x+=d.vx*dt;d.z+=d.vz*dt;
+      d.outVy-=12*dt;
+      d.outY+=d.outVy*dt;
+      // 卓の天面は y=-0.6（円柱中心-0.85+高さ0.5の半分）。サイコロ中心はその+半辺
+      const restY=-0.6+BOWL.dieSize/2;
+      if(d.outY<=restY){
+        d.outY=restY;
+        d.vx*=0.5;d.vz*=0.5;d.outVy=0;
+        if(Math.hypot(d.vx,d.vz)<0.1){
+          d.state='gone';
+          drawLabel(d,'✕','#c73838');
+          rattle(0.1);
+        }
+      }
+      const sp=Math.hypot(d.vx,d.vz);
+      if(sp>0.05){
+        const axis=new THREE.Vector3(d.vz,0,-d.vx).normalize();
+        d.q.premultiply(new THREE.Quaternion().setFromAxisAngle(axis,sp*dt/(BOWL.dieSize/2)));
+      }
+    }
+  }
+  // サイコロ同士の衝突（等質量+静止側の重さ補正）
+  for(let i=0;i<dice.length;i++)for(let j=i+1;j<dice.length;j++){
+    const a=dice[i],b=dice[j];
+    if(a.removed||b.removed)continue;   // 回収済み（純チンチロ）は当たらない
+    if(a.state==='out'||a.state==='gone'||b.state==='out'||b.state==='gone')continue;
+    const dx=b.x-a.x,dz=b.z-a.z,dd=Math.hypot(dx,dz),min=BOWL.dieR*2;
+    if(dd<=1e-6||dd>=min)continue;
+    const nx=dx/dd,nz=dz/dd,ov=(min-dd)/2;
+    a.x-=nx*ov;a.z-=nz*ov;b.x+=nx*ov;b.z+=nz*ov;
+    const avn=a.vx*nx+a.vz*nz,bvn=b.vx*nx+b.vz*nz;
+    const rel=avn-bvn;
+    if(rel<=0)continue;
+    const e=TUNE.rest;
+    const aNew=((1-e)*avn+(1+e)*bvn)/2,bNew=((1+e)*avn+(1-e)*bvn)/2;
+    a.vx+=(aNew-avn)*nx;a.vz+=(aNew-avn)*nz;
+    b.vx+=(bNew-bvn)*nx;b.vz+=(bNew-bvn)*nz;
+    // 静止していたサイコロが弾かれた→転がり直し（出目が変わるかもしれない見せ場）
+    for(const t of[a,b])if(t.state==='settled'&&Math.hypot(t.vx,t.vz)>0.15){
+      t.vx*=TUNE.settledDamp;t.vz*=TUNE.settledDamp;
+      t.state='roll';t.snapTo=null;t.label.visible=false;
+    }
+    if(rel>1.0){
+      rattle(0.16);beep(320,0.05,'square',0.08);vibrate(35);
+      hitstopT=Math.max(hitstopT,0.09);   // ヒットストップ（一瞬スロー）
+      shakeT=0.18;shakeA=0.1;
+    }
+  }
+}
+function anyRolling(){return dice.some(d=>d.state==='roll'||(d.state==='settled'&&d.snapTo)||(d.state==='out'));}
+
+/* ===== 投擲後の結果整理 ===== */
+function onThrowSettled(){
+  // 出目が変わったサイコロを検出してログへ
+  for(const[d,before]of facesBefore){
+    if(d.state==='settled'&&d.face!==before){
+      events.push(d.ch.name+'の目 '+before+'→'+d.face+'！');
+    }
+  }
+  const thrower=dice[dice.length-1];
+  if(thrower&&thrower.state==='settled')events.unshift(thrower.ch.name+'：出目 '+thrower.face+'！');
+  // 純チンチロモード: 投げるたび出目を記録して回収
+  if(collectEach&&thrower){
+    thrower.recorded=thrower.face;
+    removeDie(thrower,false);
+  }
+  throwIdx++;
+  if(throwIdx>=CHARS.length){
+    showRoundResult();
+  }else{
+    el('hint').classList.remove('hidden');
+    el('hint').textContent=events.join(' ')||'カラン…';
+    phase='betweenThrows';betweenT=1.2;
+  }
+}
+function removeDie(d,dispose=true){
+  scene.remove(d.mesh);scene.remove(d.label);
+  if(dispose){d.label.material.map.dispose();d.label.material.dispose();}
+  d.removed=true;
+}
+function showRoundResult(){
+  const lines=order.map(chIdx=>{
+    const d=dice.find(x=>x.owner===chIdx);
+    const face=d?(collectEach?(d.recorded??d.face):d.face):0;
+    const ch=CHARS[chIdx];
+    const shon=d&&(d.state==='out'||d.state==='gone'||face===0);
+    return ch.name+'：'+(shon?'ションベン(0)💦':'出目 '+face+' → '+face+'マスすすむ(予定)');
+  });
+  el('resultT').textContent='ラウンド'+roundNo+' 出目確定！';
+  el('resultS').innerHTML=lines.join('<br>');
+  el('resultPop').style.display='flex';
+  el('hint').classList.add('hidden');
+  el('turnB').classList.add('hidden');
+  phase='roundResult';
+  beep(880,0.1,'triangle');setTimeout(()=>beep(1180,0.12,'triangle'),100);
+  vibrate(60);
+}
+function nextRound(){
+  el('resultPop').style.display='none';
+  for(const d of dice)if(!d.removed)removeDie(d);
+  dice.length=0;
+  roundNo++;throwIdx=0;
+  order.push(order.shift());   // 投げ順ローテ（本番は資産ウェーバー順に置換）
+  showTurn();
+}
+
+/* ===== 手番フロー ===== */
+function showTurn(){
+  const ch=CHARS[order[throwIdx]];
+  el('roundB').classList.remove('hidden');
+  el('roundB').textContent='R'+roundNo+'　'+(throwIdx+1)+'/5人目';
+  el('turnB').classList.remove('hidden');
+  el('turnName').textContent=ch.name+'の番！';
+  el('turnSub').textContent='スマホを渡してね';
+  el('hint').classList.remove('hidden');
+  if(mode==='sensor'){
+    el('throwBtn').style.display='block';
+    el('throwBtn').classList.remove('arm');
+    el('throwBtn').textContent='🎲 投げる！';
+    el('hint').textContent='ボタンを押したら、手首をくいっ！';
+  }else{
+    el('throwBtn').style.display='none';
+    el('hint').textContent='ひっぱって はなす！（強さだけ）';
+  }
+  phase='await';
+}
+
+/* ===== センサー ===== */
+function onMotion(e){
+  const g=e.accelerationIncludingGravity;
+  if(g&&g.x!=null)lastG={x:g.x,y:g.y,z:g.z};
+  const r=e.rotationRate;
+  if(r){
+    const b=r.beta!=null?Math.abs(r.beta):0,gm=r.gamma!=null?Math.abs(r.gamma):0;
+    rotBeta=Math.max(b,gm);
+  }
+  if(rotBeta>rotPeak)rotPeak=rotBeta;
+  // armed中のみスパイク受付（押し続けは不要。ボタンで解放→振る）
+  if(phase==='armed'&&throwCd<=0&&!spikeCap&&rotBeta>TUNE.spikeThr){
+    spikeCap={peak:rotBeta,t:performance.now()};
+  }
+  if(spikeCap&&rotBeta>spikeCap.peak)spikeCap.peak=rotBeta;
+}
+async function requestSensor(){
+  try{
+    if(typeof DeviceMotionEvent!=='undefined'&&typeof DeviceMotionEvent.requestPermission==='function'){
+      const p=await DeviceMotionEvent.requestPermission();
+      if(p!=='granted')return false;
+    }
+    window.addEventListener('devicemotion',onMotion);
+    return await new Promise(res=>{
+      let got=false;const h=()=>{got=true;};
+      window.addEventListener('devicemotion',h,{once:true});
+      setTimeout(()=>{window.removeEventListener('devicemotion',h);res(got);},700);
+    });
+  }catch(e){return false;}
+}
+
+/* ===== 入力 ===== */
+const onUI=e=>e.target&&e.target.closest&&e.target.closest('#dbg,#dbgBtn,.overlay,#throwBtn');
+function bindInput(){
+  el('throwBtn').onclick=()=>{
+    if(phase!=='await'||mode!=='sensor')return;
+    phase='armed';armTimer=TUNE.senseWindow;
+    el('throwBtn').classList.add('arm');
+    el('throwBtn').textContent='📱 振って！';
+    el('hint').textContent='手首をくいっ！（そっと=安全 / 強く=妨害 / 強すぎ=場外）';
+    beep(520,0.06);
+  };
+  window.addEventListener('pointerdown',e=>{
+    if(onUI(e))return;
+    if(phase==='roundResult'){nextRound();return;}
+    if(phase!=='await'||mode!=='finger')return;
+    dragOn=true;dragSX=e.clientX;dragSY=e.clientY;dragPow=0;
+    el('powerWrap').style.display='block';
+  });
+  window.addEventListener('pointermove',e=>{
+    if(!dragOn||mode!=='finger')return;
+    const d=Math.hypot(e.clientX-dragSX,e.clientY-dragSY);
+    dragPow=clamp(d/TUNE.dragMax,0,1);
+    el('powerFill').style.width=(dragPow*100)+'%';
+  });
+  window.addEventListener('pointerup',()=>{
+    if(!dragOn)return;
+    dragOn=false;el('powerWrap').style.display='none';
+    if(phase==='await'&&mode==='finger'&&dragPow>0.08)doThrow(dragPow);
+    el('powerFill').style.width='0%';
+  });
+}
+
+/* ===== 描画・ループ ===== */
+function syncDice(){
+  for(const d of dice){
+    if(d.removed)continue;
+    const r=Math.hypot(d.x,d.z);
+    const y=d.state==='out'||d.state==='gone'?d.outY:bowlY(Math.min(r,BOWL.rimR))+BOWL.dieSize/2;
+    d.mesh.position.set(d.x,y,d.z);
+    d.mesh.quaternion.copy(d.q);
+    d.label.position.set(d.x,y+1.15,d.z);
+  }
+}
+let settleGrace=0,moveTimeout=0;
+function loop(){
+  requestAnimationFrame(loop);
+  const now=performance.now();
+  let dtRaw=Math.min((now-prevT)/1000,0.033);prevT=now;
+  const dt=hitstopT>0?dtRaw*0.15:dtRaw;   // ヒットストップ中はスロー
+  if(hitstopT>0)hitstopT-=dtRaw;
+  if(throwCd>0)throwCd-=dtRaw;
+  if(rattleCd>0)rattleCd-=dtRaw;
+  if(rotPeak>0)rotPeak=Math.max(0,rotPeak-dtRaw*200);
+
+  // センサー: スパイクの遅延ピーク確定→投擲
+  if(spikeCap&&now-spikeCap.t>130&&phase==='armed'){
+    const pow=clamp((spikeCap.peak-TUNE.spikeThr)/(TUNE.spikeMax-TUNE.spikeThr),0.1,1);
+    spikeCap=null;
+    doThrow(pow);
+  }
+  if(phase==='armed'){
+    armTimer-=dtRaw;
+    if(armTimer<=0){   // 時間切れ→ボタンに戻す
+      phase='await';spikeCap=null;
+      el('throwBtn').classList.remove('arm');
+      el('throwBtn').textContent='🎲 投げる！';
+      el('hint').textContent='ボタンを押したら、手首をくいっ！';
+      beep(260,0.08);
+    }
+  }
+
+  if(phase==='moving'){
+    stepPhysics(dt);
+    moveTimeout+=dtRaw;
+    if(!anyRolling()){
+      settleGrace+=dtRaw;
+      if(settleGrace>0.3){settleGrace=0;moveTimeout=0;onThrowSettled();}
+    }else settleGrace=0;
+    if(moveTimeout>9){   // 保険: 強制静止
+      for(const d of dice)if(d.state==='roll'){d.vx=0;d.vz=0;d.face=faceUpValue(d.q);d.state='settled';d.snapFrom=d.q.clone();d.snapTo=nearestOrient(d.q);d.snapT=0;}
+      moveTimeout=0;settleGrace=0;
+    }
+  }else if(phase==='betweenThrows'){
+    stepPhysics(dt);   // スナップ演出等を進める
+    betweenT-=dtRaw;
+    if(betweenT<=0)showTurn();
+    moveTimeout=0;
+  }else{
+    if(dice.length)stepPhysics(dt);
+    moveTimeout=0;
+  }
+  syncDice();
+
+  // カメラ（固定+シェイク）
+  let sx=0,sy=0;
+  if(shakeT>0){shakeT-=dtRaw;sx=(Math.random()-0.5)*shakeA;sy=(Math.random()-0.5)*shakeA;}
+  camera.position.set(camBase.x+sx,camBase.y+sy,camBase.z);
+  camera.lookAt(0,0.3,-0.2);
+
+  updateDbg();
+  renderer.render(scene,camera);
+}
+
+/* ===== デバッグパネル ===== */
+const DBG_KEYS=['spikeThr','spikeMax','dragMax','throwVMin','throwVMax','slope','fric','rest','settledDamp','senseWindow'];
+const DBG_DECIMAL=['throwVMin','throwVMax','fric','rest','settledDamp','senseWindow'];
+function fmtV(k,v){return DBG_DECIMAL.includes(k)?(+v).toFixed(2).replace(/\.?0+$/,''):Math.round(v)+'';}
+function bindDbg(){
+  for(const k of DBG_KEYS){
+    const s=el('s_'+k);if(!s)continue;
+    s.value=TUNE[k];el('v_'+k).textContent=fmtV(k,TUNE[k]);
+    s.oninput=()=>{TUNE[k]=+s.value;el('v_'+k).textContent=fmtV(k,TUNE[k]);saveTune();};
+  }
+  el('c_collect').onchange=()=>{collectEach=el('c_collect').checked;};
+  el('dbgBtn').onclick=()=>el('dbg').classList.toggle('hidden');
+  el('resetBtn').onclick=()=>{
+    for(const d of dice)if(!d.removed)removeDie(d);
+    dice.length=0;throwIdx=0;
+    el('resultPop').style.display='none';
+    showTurn();beep(520,0.06);
+  };
+  el('tuneResetBtn').onclick=()=>{TUNE={...TUNE_DEF};saveTune();bindDbg();beep(440,0.06);};
+}
+function saveTune(){try{localStorage.setItem('owan_tune',JSON.stringify(TUNE));}catch(e){}}
+function updateDbg(){
+  if(el('dbg').classList.contains('hidden'))return;
+  el('v_now').textContent='rot:'+rotBeta.toFixed(0)+' peak:'+rotPeak.toFixed(0)+' 椀内:'+dice.filter(d=>d.state==='settled').length;
+}
+
+/* ===== エントリ ===== */
+el('startBtn').onclick=async()=>{
+  beep(440,0.05);
+  const ok=await requestSensor();
+  if(!ok){el('startBtn').textContent='センサー使えず…指モードでどうぞ';setTimeout(()=>{el('startBtn').textContent='📱 センサーで遊ぶ';},2200);return;}
+  mode='sensor';
+  el('start').classList.add('hidden');
+  el('dbgBtn').classList.remove('hidden');
+  showTurn();
+};
+el('fingerBtn').onclick=()=>{
+  beep(440,0.05);mode='finger';
+  el('start').classList.add('hidden');
+  el('dbgBtn').classList.remove('hidden');
+  showTurn();
+};
+bindInput();
+bindDbg();
+init3();
+</script>
+</body>
+</html>
