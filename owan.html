@@ -18,10 +18,13 @@
   #turnName{font-size:18px;font-weight:900;line-height:1.2}
   #turnSub{font-size:11px;font-weight:700;opacity:.75}
   #roundB{top:12px;left:10px;background:rgba(255,252,242,.9);border:2px solid var(--line);border-radius:12px;padding:6px 12px;font-size:12px;font-weight:900}
-  #legend{top:52px;left:10px;background:rgba(255,252,242,.9);border:2px solid var(--line);border-radius:12px;padding:6px 9px;font-size:11px;font-weight:900;line-height:1.5}
-  #legend .lrow{display:flex;align-items:center;gap:6px;padding:1px 3px;border-radius:6px}
+  #legend{top:52px;left:10px;background:rgba(255,252,242,.9);border:2px solid var(--line);border-radius:12px;padding:6px 9px;font-size:12px;font-weight:900;line-height:1.5}
+  #legend .lrow{display:flex;align-items:center;gap:6px;padding:2px 4px;border-radius:6px;min-width:118px}
   #legend .lrow.on{background:rgba(255,206,74,.55)}
-  #legend .dot{width:13px;height:13px;border-radius:4px;border:1.5px solid rgba(0,0,0,.25)}
+  #legend .dot{width:13px;height:13px;border-radius:4px;border:1.5px solid rgba(0,0,0,.25);flex:none}
+  #legend .lname{flex:1}
+  #legend .lnum{font-size:22px;font-weight:900;min-width:26px;text-align:center;color:#3a2f22}
+  #legend .lnum.pending{color:#b9aa90;font-size:15px}
   #hint{bottom:118px;left:50%;transform:translateX(-50%);font-size:13px;font-weight:900;color:#fff;background:rgba(30,40,32,.75);border-radius:999px;padding:7px 18px;white-space:nowrap}
   #throwBtn{position:fixed;bottom:26px;left:50%;transform:translateX(-50%);z-index:7;pointer-events:auto;cursor:pointer;font-family:inherit;font-size:22px;font-weight:900;color:#fff;background:linear-gradient(180deg,#e8747c,#c74850);border:none;border-radius:999px;padding:16px 46px;box-shadow:0 10px 24px rgba(0,0,0,.4);display:none}
   #throwBtn:active{transform:translate(-50%,2px)}
@@ -236,12 +239,26 @@ function buildLegend(){
   const box=el('legend');
   box.innerHTML=CHARS.map((ch,i)=>
     '<div class="lrow" id="lrow'+i+'"><span class="dot" style="background:#'+ch.color.toString(16).padStart(6,'0')+'"></span>'
-    +ch.emoji+ch.name.replace('社長','')+'</div>'
+    +'<span class="lname">'+ch.emoji+ch.name.replace('社長','')+'</span>'
+    +'<span class="lnum pending" id="lnum'+i+'">-</span></div>'
   ).join('');
 }
 function updateLegend(){
   const active=phase==='menu'||phase==='roundResult'?-1:order[throwIdx];
-  CHARS.forEach((ch,i)=>{const r=el('lrow'+i);if(r)r.classList.toggle('on',i===active);});
+  CHARS.forEach((ch,i)=>{
+    const r=el('lrow'+i);if(r)r.classList.toggle('on',i===active);
+    // 出目が確定（サイコロ静止＝settledでスナップ完了、または純チンチロで回収済み）
+    // したら名前の横に数字を大きく表示
+    const num=el('lnum'+i);if(!num)return;
+    const d=dice.find(x=>x.owner===i);
+    let val=null;
+    if(d){
+      if(d.recorded!=null)val=d.recorded;
+      else if(!d.removed&&d.state==='settled'&&!d.snapTo)val=d.face;
+    }
+    if(val!=null){num.textContent=val;num.classList.remove('pending');}
+    else{num.textContent='-';num.classList.add('pending');}
+  });
 }
 let camBase={x:0,y:10.5,z:9.5};
 function fitCam(){
