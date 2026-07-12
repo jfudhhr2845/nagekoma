@@ -14,21 +14,24 @@
   #app{position:fixed;inset:0}
   canvas{display:block}
   .hud{position:fixed;pointer-events:none;z-index:6}
-  #turnB{top:10px;left:50%;transform:translateX(-50%);background:rgba(255,252,242,.94);border:2px solid var(--line);border-radius:16px;padding:8px 20px;text-align:center;box-shadow:0 4px 14px rgba(0,0,0,.3)}
-  #turnName{font-size:18px;font-weight:900;line-height:1.2}
-  #turnSub{font-size:11px;font-weight:700;opacity:.75}
-  #roundB{top:12px;left:10px;background:rgba(255,252,242,.9);border:2px solid var(--line);border-radius:12px;padding:6px 12px;font-size:12px;font-weight:900}
-  #legend{top:52px;left:10px;background:rgba(255,252,242,.9);border:2px solid var(--line);border-radius:12px;padding:6px 9px;font-size:12px;font-weight:900;line-height:1.5}
-  #legend .lrow{display:flex;align-items:center;gap:6px;padding:2px 4px;border-radius:6px;min-width:118px}
-  #legend .lrow.on{background:rgba(255,206,74,.55)}
-  #legend .dot{width:13px;height:13px;border-radius:4px;border:1.5px solid rgba(0,0,0,.25);flex:none}
-  #legend .lname{flex:1}
-  #legend .lnum{font-size:22px;font-weight:900;min-width:26px;text-align:center;color:#3a2f22}
-  #legend .lnum.pending{color:#b9aa90;font-size:15px}
-  #legend .lnum.cash{font-size:12px;color:#2e6b45}
-  #legend .lrow{flex-wrap:wrap}
-  #legend .ldest{display:block;width:100%;font-size:10px;font-weight:900;padding-left:19px;line-height:1.3;min-height:13px}
+  /* 上=情報ゾーン（トップバー+5社チップ横並び）、中央=お椀/盤（遮蔽物なし）、下=操作ゾーン */
+  #topbar{position:fixed;top:0;left:0;right:0;z-index:6;pointer-events:none;background:rgba(255,252,242,.94);border-bottom:2px solid var(--line);padding:5px 52px 5px 10px;text-align:center;box-shadow:0 3px 10px rgba(0,0,0,.2)}
+  #roundB{font-size:11px;font-weight:900;opacity:.8}
+  #turnB{margin-top:1px}
+  #turnName{font-size:17px;font-weight:900}
+  #turnSub{font-size:11px;font-weight:700;opacity:.75;margin-left:8px}
+  #legend{top:60px;left:4px;right:4px;display:flex;gap:4px;justify-content:center}
+  #legend .lrow{flex:1;max-width:82px;background:rgba(255,252,242,.92);border:2px solid var(--line);border-radius:10px;padding:3px 2px 4px;display:flex;flex-direction:column;align-items:center;line-height:1.25}
+  #legend .lrow.on{border-color:#e8a030;background:rgba(255,226,140,.95)}
+  #legend .ltop{font-size:10px;font-weight:900;display:flex;align-items:center;gap:3px;white-space:nowrap}
+  #legend .dot{width:9px;height:9px;border-radius:3px;border:1px solid rgba(0,0,0,.25);flex:none}
+  #legend .lnum{font-size:20px;font-weight:900;color:#3a2f22;line-height:1.1}
+  #legend .lnum.pending{color:#b9aa90;font-size:14px}
+  #legend .lnum.cash{font-size:11px;color:#2e6b45}
+  #legend .ldest{font-size:9px;font-weight:900;white-space:nowrap;overflow:hidden;max-width:100%;min-height:12px}
   #banner{position:fixed;bottom:64px;left:50%;transform:translateX(-50%);z-index:7;pointer-events:none;background:rgba(255,252,242,.96);border:3px solid var(--line);border-radius:16px;padding:10px 22px;text-align:center;box-shadow:0 8px 24px rgba(0,0,0,.35);max-width:92vw;animation:popin .22s ease-out}
+  #tipPop{position:fixed;bottom:170px;left:50%;transform:translateX(-50%);z-index:9;background:rgba(232,244,255,.97);border:2px solid #7aa8d0;border-radius:14px;padding:9px 12px;max-width:88vw;font-size:12px;font-weight:700;line-height:1.7;box-shadow:0 6px 18px rgba(0,0,0,.3);animation:popin .22s ease-out;display:flex;gap:8px;align-items:center;pointer-events:auto}
+  #tipPop .ok{flex:none;border:none;border-radius:8px;background:#5f88c0;color:#fff;font-family:inherit;font-weight:900;font-size:12px;padding:6px 12px;cursor:pointer}
   #bannerT{font-size:16px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   #bannerB{font-size:22px;font-weight:900;margin-top:2px}
   #hint{bottom:118px;left:50%;transform:translateX(-50%);font-size:13px;font-weight:900;color:#fff;background:rgba(30,40,32,.75);border-radius:999px;padding:7px 18px;white-space:nowrap}
@@ -66,11 +69,11 @@
 </head>
 <body>
 <div id="app"></div>
-<div id="roundB" class="hud hidden">R1</div>
+<div id="topbar" class="hud hidden"><div id="roundB">-</div><div id="turnB" class="hidden"><span id="turnName">-</span><span id="turnSub">-</span></div></div>
 <div id="legend" class="hud hidden"></div>
-<div id="turnB" class="hud hidden"><div id="turnName">-</div><div id="turnSub">-</div></div>
 <div id="hint" class="hud hidden">-</div>
 <div id="banner" class="hidden"><div id="bannerT">-</div><div id="bannerB">-</div></div>
+<div id="tipPop" class="hidden"><span>💡</span><span id="tipTxt">-</span><button class="ok" id="tipOk">OK</button></div>
 <div id="powerWrap" class="hud"><div id="powerFill"></div></div>
 <button id="throwBtn">🎲 投げる！</button>
 <button id="dbgBtn" class="hidden">⚙</button>
@@ -88,6 +91,7 @@
   <label>静止サイコロの重さ(動きにくさ) <span class="dv" id="v_settledDamp"></span><input type="range" id="s_settledDamp" min="0.3" max="1" step="0.05"></label>
   <label>センサー受付秒数 <span class="dv" id="v_senseWindow"></span><input type="range" id="s_senseWindow" min="1.5" max="5" step="0.5"></label>
   <label style="display:flex;gap:6px;align-items:center;margin-top:10px"><input type="checkbox" id="c_collect" style="width:auto">純チンチロ（投げるたび回収）</label>
+  <label style="display:flex;gap:6px;align-items:center;margin-top:6px"><input type="checkbox" id="c_help" style="width:auto" checked>💡 解説ポップを表示</label>
   <div style="margin-top:8px;opacity:.75">センサー生値: <span id="v_now">-</span></div>
   <button class="dbtn" id="resetBtn">↺ ラウンドをやり直す</button>
   <button class="dbtn" id="tuneResetBtn">係数を初期値にもどす</button>
@@ -107,7 +111,19 @@
     </div>
     <button class="btn" id="startBtn">📱 センサーで遊ぶ</button>
     <button class="btn sub2" id="fingerBtn">👆 指で遊ぶ（ひっぱりで方向と強さ）</button>
+    <button class="btn" id="tutBtn" style="background:linear-gradient(180deg,#8fb8e0,#5f88c0);box-shadow:0 8px 20px rgba(95,136,192,.4)">📖 あそびかた（チュートリアル）</button>
     <div class="note">iPhoneは「動作と方向」の許可が出るのだ。HTTPS必須。キャリブレーションは不要になったのだ。<br>⚙で椀の傾斜・摩擦・ねらい可動域・スナップ感度を実機調整してほしいのだ。</div>
+  </div>
+</div>
+
+<div id="tut" class="overlay hidden" style="z-index:30">
+  <div class="card" style="pointer-events:auto">
+    <div id="tutIcon" style="font-size:44px;margin-bottom:4px">🎲</div>
+    <div id="tutTitle" style="font-size:19px;font-weight:900;margin-bottom:8px">-</div>
+    <div id="tutBody" class="rules" style="font-size:12.5px">-</div>
+    <div id="tutDots" style="font-size:11px;letter-spacing:3px;opacity:.6;margin-bottom:4px">-</div>
+    <button class="btn" id="tutNextBtn">つぎへ</button>
+    <button class="btn sub2" id="tutSkipBtn">とじる</button>
   </div>
 </div>
 
@@ -329,8 +345,8 @@ function updateAimArrow(show){
 function buildLegend(){
   const box=el('legend');
   box.innerHTML=CHARS.map((ch,i)=>
-    '<div class="lrow" id="lrow'+i+'"><span class="dot" style="background:#'+ch.color.toString(16).padStart(6,'0')+'"></span>'
-    +'<span class="lname">'+ch.emoji+ch.name.replace('社長','')+'</span>'
+    '<div class="lrow" id="lrow'+i+'">'
+    +'<span class="ltop"><span class="dot" style="background:#'+ch.color.toString(16).padStart(6,'0')+'"></span>'+ch.emoji+ch.name.replace('社長','')+'</span>'
     +'<span class="lnum pending" id="lnum'+i+'">-</span>'
     +'<span class="ldest" id="ldest'+i+'"></span></div>'
   ).join('');
@@ -348,11 +364,11 @@ function updateLegend(){
     const num=el('lnum'+i),dest=el('ldest'+i);
     if(!num)return;
     if(onBoard){
-      // 盤シーン中は現金を表示
+      // 盤シーン中は総資産（順位の基準）を主表示、現金を小さく併記
       const p=pieces[i];
-      num.textContent=p?p.cash+'万':'-';
+      num.textContent=p?assets(p)+'万':'-';
       num.classList.remove('pending');num.classList.add('cash');
-      if(dest)dest.textContent='';
+      if(dest&&p){dest.textContent='現金'+p.cash+'万';dest.style.color='#2e6b45';}
       return;
     }
     num.classList.remove('cash');
@@ -653,6 +669,7 @@ function onThrowSettled(){
     removeDie(thrower,false);
   }
   throwIdx++;
+  helpPop('dest','画面上のパネルに各社の「出目」と「→行き先で起こること」が出るのだ。緑=お得、赤=キケンなのだ');
   if(throwIdx>=CHARS.length){
     showRoundResult();
   }else{
@@ -980,6 +997,7 @@ function beginPlayerMove(){
   hopDoneCb=()=>{spreadPieces();syncPieces();landPlayer(p,0);};
   phase='seqMove';
   beep(560+p.i*40,0.06,'triangle');
+  helpPop('move','出目のぶんだけ前へすすむのだ。とまったマスで いろいろ起こる！（タップで早送りできるのだ）');
 }
 function endPlayerMove(){
   clearBalloons();
@@ -1052,7 +1070,9 @@ function landPlayer(p,depth){
       const cost=Math.round(tgt.price*1.5);
       if(p.cash>=cost){
         landCtx={p,tile:tgt,cost,kind:'tob'};
-        showBuyPop(p,'📈 TOBチャンス！<br>'+CHARS[tgt.owner].emoji+CHARS[tgt.owner].name+'の物件('+tgt.price+'万)を<br><b>'+cost+'万</b>で強制買収する？<br><span style="opacity:.6;font-size:12px">所持金 '+p.cash+'万</span>');
+        showBuyPop(p,'📈 TOBチャンス！<br>'+CHARS[tgt.owner].emoji+CHARS[tgt.owner].name+'の物件('+tgt.price+'万)を<br><b>'+cost+'万</b>で強制買収する？'
+          +'<br><span style="opacity:.75;font-size:11px;line-height:1.8;display:block;margin-top:4px">TOB＝相手は拒否できない強制買収なのだ。<br>代金'+cost+'万は相手に入る（1.5倍で買い取り）</span>'
+          +'<span style="opacity:.6;font-size:12px">所持金 '+p.cash+'万</span>');
         return;
       }
       showBalloon(p,'📈 TOBマス','資金不足…('+cost+'万必要)',false,()=>afterLand(p));
@@ -1068,7 +1088,9 @@ function landPlayer(p,depth){
     if(t.owner==null){
       if(p.cash>=t.price){
         landCtx={p,tile:t,cost:t.price,kind:'buy'};
-        showBuyPop(p,'🏪 空き物件！<br><b>'+t.price+'万</b>で買う？<br><span style="opacity:.6;font-size:12px">所持金 '+p.cash+'万</span>');
+        showBuyPop(p,'🏪 空き物件！<br><b>'+t.price+'万</b>で買う？'
+          +'<br><span style="opacity:.75;font-size:11px;line-height:1.8;display:block;margin-top:4px">買うと自分の色のマスになるのだ：<br>・他社が止まるたび<b>使用料+'+Math.round(t.price*RENT_RATE)+'万</b><br>・決算(3,6,9,12月)ごとに<b>収益+'+Math.round(t.price*YIELD_RATE)+'万</b></span>'
+          +'<span style="opacity:.6;font-size:12px">所持金 '+p.cash+'万</span>');
         return;
       }
       showBalloon(p,'🏪 '+t.price+'万の物件','資金不足で買えない…',false,()=>afterLand(p));
@@ -1193,6 +1215,7 @@ function roundSummary(){
   phase='summaryWait';
   beep(660,0.1,'triangle');setTimeout(()=>beep(880,0.1,'triangle'),110);setTimeout(()=>beep(1100,0.14,'triangle'),220);
   vibrate(70);
+  helpPop('summary','順位は「総資産」＝現金＋持っている物件のねだんで決まるのだ。物件を買って資産をふやすのだ！');
 }
 function finishBoardRound(){
   roundNo++;
@@ -1237,7 +1260,7 @@ function resetAll(){
 /* ===== 手番フロー（盤で行き先プレビュー→お椀で投げ） ===== */
 function showTurn(){
   const i=order[throwIdx],ch=CHARS[i],pc=pieces[i];
-  el('roundB').classList.remove('hidden');
+  el('topbar').classList.remove('hidden');
   el('legend').classList.remove('hidden');
   const queue=order.slice(throwIdx+1).map(x=>CHARS[x].emoji).join('');
   el('roundB').textContent=MONTHS[roundNo-1]+'('+roundNo+'/'+MAX_ROUNDS+')　'+(throwIdx+1)+'/5人目'+(queue?'　つぎ→'+queue:'');
@@ -1259,6 +1282,7 @@ function startPreview(p){
   previewT=3.2;   // 寄りカメラのパンが入るぶん少し長めに見せる
   phase='previewBoard';
   beep(560,0.06,'sine');
+  helpPop('preview','ひかっているマス＝出目1〜6でとまる候補なのだ。どの目がほしいかイメージしてから投げるのだ！');
 }
 function endPreview(){
   for(const t of prevCands){t.mesh.material.emissive.setHex(0x000000);t.mesh.material.emissiveIntensity=1;}
@@ -1278,6 +1302,7 @@ function bowlThrowUI(){
     el('hint').textContent='ひっぱって方向と強さを決めてはなす！';
   }
   phase='await';
+  helpPop('bowl','サイコロをお椀へ投げ入れるのだ。そっと=手前 / 強く=奥。あとから投げる人は、先客のサイコロを弾いて出目を変えられるのだ！');
 }
 
 /* ===== センサー ===== */
@@ -1312,7 +1337,7 @@ async function requestSensor(){
 }
 
 /* ===== 入力 ===== */
-const onUI=e=>e.target&&e.target.closest&&e.target.closest('#dbg,#dbgBtn,.overlay,#throwBtn');
+const onUI=e=>e.target&&e.target.closest&&e.target.closest('#dbg,#dbgBtn,.overlay,#throwBtn,#tipPop');
 function bindInput(){
   el('throwBtn').onclick=()=>{
     if(phase!=='await'||mode!=='sensor')return;
@@ -1502,6 +1527,42 @@ function updateDbg(){
   el('v_now').textContent='rot:'+rotBeta.toFixed(0)+' peak:'+rotPeak.toFixed(0)+' 椀内:'+dice.filter(d=>d.state==='settled').length;
 }
 
+/* ===== チュートリアル（タイトルから見返せる。初回は自動表示） ===== */
+const TUT_PAGES=[
+  {icon:'🏆',t:'ゲームのもくてき',b:'5社の社長で競う経営すごろく！<br>12ヶ月（12ラウンド）あそんで、<b>総資産（現金＋物件の価値）1位</b>の社長が年間MVPなのだ！'},
+  {icon:'🥣',t:'1ラウンドのながれ',b:'① 5社がじゅんばんに<b>お椀へサイコロを投げ入れる</b><br>② 全員の出目が確定<br>③ すごろく盤を<b>出目のぶんだけ前へすすむ</b><br>④ 止まったマスの効果が発動<br>⑤ 収支と順位の発表！'},
+  {icon:'📱',t:'サイコロの投げかた',b:'<b>センサー</b>：「投げる！」ボタン→スマホをかたむけて ねらい→<b>手首をくいっ！</b><br><b>指</b>：画面をひっぱって はなす<br><i>そっと投げ</i>＝手前に置く／<i>強く投げ</i>＝奥までころがる'},
+  {icon:'💥',t:'弾き合いがアツい！',b:'投げたサイコロは<b>お椀に残る</b>。あとの人が当てると<b>相手の出目が転がり直る</b>！<br>画面上のパネルに各社の<b>出目と行き先</b>が出るので、<i>いい行き先の敵は弾いてジャマ</i>するのだ。投げ順はビリが最後＝ジャマし放題！'},
+  {icon:'🏪',t:'マスのみかた',b:'🏪の<b>数字＝物件のねだん</b>。買うと自分の色になり、他社が止まると<b>使用料（ねだんの10%）</b>がもらえる<br>🎲＝イベント（50種）　🏦＝現金の5%もらえる<br>📈＝TOB（他社の物件を1.5倍で強制買収）<br>Ｓ＝スタート（+50万）<br><i>まんなかの家や山は ただの かざりなのだ</i>'},
+  {icon:'💰',t:'決算と勝ちかた',b:'3・6・9・12月の終わりは<b>決算</b>！持っている物件のねだんの<b>18%が収益</b>になる<br>物件を買って、使用料と決算収益で<b>資産をふやす</b>のが勝ち筋。現金を使いすぎると何もできなくなるので注意なのだ！'},
+];
+let tutIdx=0;
+function renderTut(){
+  const pg=TUT_PAGES[tutIdx];
+  el('tutIcon').textContent=pg.icon;
+  el('tutTitle').textContent=pg.t;
+  el('tutBody').innerHTML=pg.b;
+  el('tutDots').textContent=TUT_PAGES.map((_,i)=>i===tutIdx?'●':'○').join(' ');
+  el('tutNextBtn').textContent=tutIdx>=TUT_PAGES.length-1?'あそぶ！':'つぎへ';
+}
+function openTut(){tutIdx=0;renderTut();el('tut').classList.remove('hidden');}
+function closeTut(){el('tut').classList.add('hidden');try{localStorage.setItem('owan_tut_seen','1');}catch(e){}}
+
+/* ===== 解説ポップ（それぞれ初回のみ表示。⚙でOFFにできる） ===== */
+let helpOn=true,helpSeen={},tipTimer=0;
+try{helpOn=localStorage.getItem('owan_help_on')!=='0';}catch(e){}
+try{helpSeen=JSON.parse(localStorage.getItem('owan_help_seen')||'{}');}catch(e){}
+function helpPop(key,txt){
+  if(!helpOn||helpSeen[key])return;
+  helpSeen[key]=1;
+  try{localStorage.setItem('owan_help_seen',JSON.stringify(helpSeen));}catch(e){}
+  el('tipTxt').textContent=txt;
+  el('tipPop').classList.remove('hidden');
+  clearTimeout(tipTimer);
+  tipTimer=setTimeout(hideTip,9000);
+}
+function hideTip(){el('tipPop').classList.add('hidden');}
+
 /* ===== エントリ ===== */
 el('startBtn').onclick=async()=>{
   beep(440,0.05);
@@ -1520,9 +1581,16 @@ el('fingerBtn').onclick=()=>{
 };
 el('buyYesBtn').onclick=()=>{if(phase==='landBuy')answerLandBuy(true);};
 el('buyNoBtn').onclick=()=>{if(phase==='landBuy')answerLandBuy(false);};
+el('tutBtn').onclick=()=>{beep(560,0.05);openTut();};
+el('tutNextBtn').onclick=()=>{beep(560,0.05);if(tutIdx>=TUT_PAGES.length-1){closeTut();return;}tutIdx++;renderTut();};
+el('tutSkipBtn').onclick=()=>{beep(400,0.05);closeTut();};
+el('tipOk').onclick=()=>{beep(560,0.05);hideTip();};
+el('c_help').checked=helpOn;
+el('c_help').onchange=()=>{helpOn=el('c_help').checked;try{localStorage.setItem('owan_help_on',helpOn?'1':'0');}catch(e){}};
 bindInput();
 bindDbg();
 init3();
+try{if(!localStorage.getItem('owan_tut_seen'))openTut();}catch(e){}
 </script>
 </body>
 </html>
