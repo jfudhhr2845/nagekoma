@@ -653,6 +653,30 @@ function showRoundResult(){
 /* ===================================================================
    すごろく盤シーン（出目確定後の移動・経済）
    =================================================================== */
+/* 盤シーン用の共有ジオメトリとメッシュヘルパ（お椀側はサイコロ専用なのでここで定義） */
+const GEO={
+  sph:new THREE.SphereGeometry(0.5,18,14),
+  cone:new THREE.ConeGeometry(0.5,1,10),
+  box:new THREE.BoxGeometry(1,1,1),
+  cap:new THREE.CapsuleGeometry(0.5,1,4,10),
+};
+function P(g,geo,color,pos,scale,rot,opt={}){
+  const m=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({color,roughness:0.9,flatShading:true,...opt}));
+  if(pos)m.position.set(...pos);if(scale)m.scale.set(...scale);if(rot)m.rotation.set(...rot);
+  g.add(m);return m;
+}
+function makeEmojiSprite(txt,big){
+  const c=document.createElement('canvas');c.width=c.height=96;
+  const x=c.getContext('2d');
+  x.font=(big?'bold 62px':'58px')+" 'Zen Maru Gothic',sans-serif";
+  x.textAlign='center';x.textBaseline='middle';
+  if(big)x.fillStyle='#7a5a20';
+  x.fillText(txt,48,52);
+  const tex=new THREE.CanvasTexture(c);tex.colorSpace=THREE.SRGBColorSpace;
+  const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true,depthWrite:false}));
+  sp.scale.set(1.25,1.25,1);
+  return sp;
+}
 /* 外周パス: 下辺中央(スタート)→右回りに一周28マス */
 function pathCells(){
   const cells=[];
@@ -672,11 +696,20 @@ const TILE_STYLE={
   tob:{c:0xe08a8a,emoji:'📈'},
 };
 function cellXZ(c,r){return {x:(c-(GRID.cols-1)/2)*GRID.cell,z:(r-(GRID.rows-1)/2)*GRID.cell};}
+function roundRectPath(x,px,py,w,h,r){
+  x.beginPath();
+  x.moveTo(px+r,py);
+  x.arcTo(px+w,py,px+w,py+h,r);
+  x.arcTo(px+w,py+h,px,py+h,r);
+  x.arcTo(px,py+h,px,py,r);
+  x.arcTo(px,py,px+w,py,r);
+  x.closePath();
+}
 function makeTextSprite(txt,fontPx,colorCss,scale){
   const c=document.createElement('canvas');c.width=192;c.height=72;
   const x=c.getContext('2d');
   x.fillStyle='rgba(255,252,242,.92)';
-  x.beginPath();x.roundRect(6,6,180,60,16);x.fill();
+  roundRectPath(x,6,6,180,60,16);x.fill();   // ctx.roundRectは古いSafariに無いため自前パス
   x.font='bold '+fontPx+"px 'Zen Maru Gothic',sans-serif";
   x.textAlign='center';x.textBaseline='middle';
   x.fillStyle=colorCss;x.fillText(txt,96,38);
