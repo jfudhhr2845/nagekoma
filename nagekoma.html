@@ -1,0 +1,872 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>なげこま(仮)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&display=swap" rel="stylesheet">
+<style>
+  :root{--main:#5fae7a;--warn:#ffce4a;--danger:#ff6a5a;--line:#cdbfa5;--txt:#4a3f30}
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;overflow:hidden;background:#bfe0cc}
+  body{font-family:'Zen Maru Gothic',sans-serif;color:var(--txt);-webkit-user-select:none;user-select:none;touch-action:none;overscroll-behavior:none}
+  #app{position:fixed;inset:0}
+  canvas{display:block}
+  .hud{position:fixed;pointer-events:none;z-index:6}
+  #turnB{top:10px;left:50%;transform:translateX(-50%);background:rgba(255,252,242,.92);border:2px solid var(--line);border-radius:16px;padding:8px 18px;text-align:center;box-shadow:0 4px 14px rgba(80,60,30,.18)}
+  #turnName{font-size:18px;font-weight:900;line-height:1.2}
+  #turnSub{font-size:11px;font-weight:700;opacity:.75}
+  #hint{bottom:18px;left:50%;transform:translateX(-50%);font-size:13px;font-weight:900;background:rgba(255,252,242,.9);border:2px solid var(--line);border-radius:999px;padding:7px 18px;white-space:nowrap;box-shadow:0 3px 10px rgba(80,60,30,.15)}
+  #powerWrap{bottom:56px;left:50%;transform:translateX(-50%);width:min(60vw,240px);height:14px;border-radius:8px;background:rgba(255,252,242,.85);border:2px solid var(--line);overflow:hidden;display:none}
+  #powerFill{height:100%;width:0%;background:linear-gradient(90deg,#7ed6a0,#ffce4a,#ff6a5a);border-radius:6px}
+  #armB{bottom:80px;left:50%;transform:translateX(-50%);font-size:12px;font-weight:900;color:#fff;background:rgba(255,106,90,.92);border-radius:999px;padding:5px 16px;display:none}
+  #resultPop{position:fixed;inset:0;z-index:14;display:none;align-items:center;justify-content:center;pointer-events:auto}
+  #resultCard{background:rgba(255,252,242,.96);border:3px solid var(--line);border-radius:20px;padding:20px 26px;text-align:center;max-width:86vw;box-shadow:0 14px 40px rgba(60,40,20,.3);animation:popin .28s ease-out}
+  @keyframes popin{0%{transform:scale(.6);opacity:0}100%{transform:scale(1);opacity:1}}
+  #resultT{font-size:20px;font-weight:900;margin-bottom:6px}
+  #resultS{font-size:13px;font-weight:700;line-height:1.9;opacity:.85}
+  #resultTap{font-size:11px;font-weight:700;opacity:.5;margin-top:10px}
+  #dbgBtn{position:fixed;top:10px;right:10px;z-index:8;pointer-events:auto;cursor:pointer;width:36px;height:36px;border-radius:50%;border:2px solid var(--line);background:rgba(255,252,242,.92);color:var(--txt);font-weight:900;font-size:16px;font-family:inherit}
+  #dbg{position:fixed;top:54px;right:8px;z-index:8;background:rgba(255,252,242,.96);border:2px solid var(--line);border-radius:14px;padding:10px 12px;width:240px;font-size:11px;font-weight:700;max-height:78vh;overflow:auto;pointer-events:auto}
+  #dbg label{display:block;margin-top:7px}
+  #dbg input[type=range]{width:100%}
+  #dbg .dv{color:#2e8b57}
+  #dbg .dbtn{margin-top:8px;width:100%;padding:6px;border-radius:8px;border:1px solid var(--line);background:#fff;font-family:inherit;font-weight:900;cursor:pointer}
+  .overlay{position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 30%,rgba(220,245,225,.9),rgba(150,190,165,.96));backdrop-filter:blur(3px);padding:16px}
+  .card{width:min(94vw,440px);max-height:92vh;overflow:auto;background:linear-gradient(165deg,#fffdf4,#f4ecd8);border:3px solid var(--line);border-radius:24px;padding:28px 22px;text-align:center;box-shadow:0 24px 60px rgba(60,50,30,.35)}
+  .logo{font-size:38px;font-weight:900;line-height:1.15;letter-spacing:2px}
+  .logo .a{color:#e8954f}.logo .k{color:#5fae7a}
+  .sub{font-size:12.5px;opacity:.8;margin:10px 0 14px;font-weight:700;line-height:1.8}
+  .rules{text-align:left;background:rgba(95,174,122,.1);border:2px solid rgba(95,174,122,.35);border-radius:14px;padding:12px 14px;font-size:12px;line-height:2.0;margin-bottom:16px;font-weight:700}
+  .rules b{color:#2e8b57}.rules i{color:#d8862e;font-style:normal}
+  .btn{cursor:pointer;font-family:inherit;font-size:18px;font-weight:900;color:#fff;background:linear-gradient(180deg,#78c896,#4f9e6c);border:none;border-radius:16px;padding:13px 30px;box-shadow:0 8px 20px rgba(79,158,108,.45);transition:.08s;display:block;width:100%;margin-top:10px}
+  .btn:active{transform:translateY(2px)}
+  .btn.sub2{background:linear-gradient(180deg,#e8b06a,#cf8c3e);box-shadow:0 8px 20px rgba(207,140,62,.4)}
+  .note{font-size:10.5px;opacity:.6;margin-top:14px;line-height:1.8;font-weight:700}
+  #calib .big{font-size:54px;margin:10px 0}
+  #calib .cnt{font-size:40px;font-weight:900;color:#2e8b57}
+  .hidden{display:none!important}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="turnB" class="hud hidden"><div id="turnName">-</div><div id="turnSub">-</div></div>
+<div id="hint" class="hud hidden">-</div>
+<div id="powerWrap" class="hud"><div id="powerFill"></div></div>
+<div id="armB" class="hud">🎯 ねらい中…スナップ！</div>
+<button id="dbgBtn" class="hidden">⚙</button>
+<div id="dbg" class="hidden">
+  <b>⚙ 投げごこち調整</b>
+  <label>スナップ発動しきい <span class="dv" id="v_spikeThr"></span><input type="range" id="s_spikeThr" min="40" max="220" step="5"></label>
+  <label>スナップ最大(ここでMAXパワー) <span class="dv" id="v_spikeMax"></span><input type="range" id="s_spikeMax" min="140" max="500" step="10"></label>
+  <label>ねらい可動域(±度) <span class="dv" id="v_aimRange"></span><input type="range" id="s_aimRange" min="30" max="170" step="5"></label>
+  <label>指ひっぱり最大(px) <span class="dv" id="v_dragMax"></span><input type="range" id="s_dragMax" min="80" max="340" step="10"></label>
+  <label>転がし初速 <span class="dv" id="v_rollV"></span><input type="range" id="s_rollV" min="8" max="30" step="0.5"></label>
+  <label>山なり開始パワー <span class="dv" id="v_loftPow"></span><input type="range" id="s_loftPow" min="0.3" max="0.85" step="0.05"></label>
+  <label>山なり最大距離 <span class="dv" id="v_loftMaxD"></span><input type="range" id="s_loftMaxD" min="10" max="24" step="0.5"></label>
+  <label>まさつ <span class="dv" id="v_fric"></span><input type="range" id="s_fric" min="0.6" max="3.2" step="0.1"></label>
+  <label>コマ反発 <span class="dv" id="v_rest"></span><input type="range" id="s_rest" min="0.2" max="1" step="0.05"></label>
+  <label>かべ反発 <span class="dv" id="v_wallRest"></span><input type="range" id="s_wallRest" min="0.1" max="1" step="0.05"></label>
+  <label>吸着半径 <span class="dv" id="v_snapR"></span><input type="range" id="s_snapR" min="0.6" max="3" step="0.1"></label>
+  <label>吸着開始速度 <span class="dv" id="v_snapV"></span><input type="range" id="s_snapV" min="0.8" max="5" step="0.1"></label>
+  <div style="margin-top:8px;opacity:.75">センサー生値: <span id="v_now">-</span></div>
+  <button class="dbtn" id="resetBtn">↺ 全コマをスタートへ</button>
+  <button class="dbtn" id="tuneResetBtn">係数を初期値にもどす</button>
+</div>
+
+<div id="start" class="overlay">
+  <div class="card">
+    <div class="logo">なげ<span class="a">こま</span><span class="k">(仮)</span></div>
+    <div class="sub">フェーズ1プロト＝れんしゅう場<br>スマホを「くいっ」でコマを投げるのだ</div>
+    <div class="rules">
+      📱 <b>画面をおさえている間</b>だけ投げ受付。<b>左右かたむけ</b>=ねらい、<b>手首くいっ</b>=投げ！<br>
+      💪 パワーは<b>軽いスナップでMAX</b>。強く振っても意味なし、<i>強すぎはコースアウト</i>のもと<br>
+      🏝️ <b>強め＆山なり</b>で中央の特区へ。とどかないと<i>池ポチャ</i>（もとのマスへ）<br>
+      💥 他のコマに当てると<b>はじきとばせる</b>。とまったマスがそのコマの新しい現在地<br>
+      🧲 ゆっくりになると<b>近くのマスに吸着</b>してとまる
+    </div>
+    <button class="btn" id="startBtn">📱 センサーで遊ぶ</button>
+    <button class="btn sub2" id="fingerBtn">👆 指で遊ぶ（ひっぱって発射）</button>
+    <div class="note">iPhoneは「動作と方向」の許可が出るのだ。HTTPS必須（GitHub Pages等）。<br>5匹のコマをじゅんばんに投げて、投げごこちを⚙で調整してほしいのだ。</div>
+  </div>
+</div>
+
+<div id="calib" class="overlay hidden">
+  <div class="card">
+    <div style="font-size:12px;letter-spacing:2px;opacity:.7;font-weight:900">キャリブレーション</div>
+    <div class="big">📱🐻</div>
+    <div class="sub">楽な持ち方でかまえて、そのまま…<br>その姿勢を「まっすぐ」として覚えるのだ</div>
+    <div class="cnt" id="calibCnt">3</div>
+  </div>
+</div>
+
+<div id="resultPop"><div id="resultCard"><div id="resultT">-</div><div id="resultS">-</div><div id="resultTap">タップでつぎへ</div></div></div>
+
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
+<script type="module">
+import * as THREE from 'three';
+
+/* ===== 調整パラメータ（⚙パネルで実機調整する） ===== */
+const TUNE_DEF={
+  spikeThr:90,    // 投擲発動の回転レートしきい(deg/s)
+  spikeMax:260,   // この回転レートで最大パワー（軽いスナップで届く上限キャップ）
+  aimRange:80,    // 傾きによるねらい可動域(±deg)
+  tiltFull:0.35,  // この傾き(重力比)でフル舵
+  dragMax:170,    // 指モード: この引き距離(px)で最大パワー
+  rollV:17,       // 転がし投げの最大初速
+  loftPow:0.55,   // このパワー以上で山なり弾道（未満はリング沿いの転がし）
+  loftMinD:7,     // 山なり最小距離
+  loftMaxD:16.5,  // 山なり最大距離
+  fric:1.6,       // 摩擦（速度の指数減衰/s）
+  rest:0.75,      // コマ同士の反発係数
+  wallRest:0.55,  // 壁の反発係数
+  snapR:1.6,      // マス吸着をはじめる半径
+  snapV:2.2,      // この速度以下で吸着開始
+  snapAcc:26,     // 吸着の引力
+};
+let TUNE={...TUNE_DEF};
+try{const s=JSON.parse(localStorage.getItem('nagekoma_tune')||'null');if(s)TUNE={...TUNE_DEF,...s};}catch(e){}
+
+/* ===== 盤ジオメトリ定数 ===== */
+const BOARD={
+  ringR:10,      // 外周リング中心半径
+  tileN:24,      // 外周マス数
+  chanIn:8.4,    // リング内壁半径
+  chanOut:11.6,  // リング外壁半径
+  islandR:3.3,   // 中央島の半径
+  pieceR:0.75,   // コマの当たり半径
+};
+const FLIGHT_KEEP=0.35;  // 着地後に残す水平速度の割合
+const SPLASH_T=0.9;      // 池ポチャ演出秒数
+
+/* ===== 5社のコマ定義（業種は演出のみ。経済はフェーズ2） ===== */
+const CHARS=[
+  {id:'kuma',   name:'くま社長',   ind:'🏢不動産', color:0xb9855a, sub:0x8a5f3c},
+  {id:'kitsune',name:'きつね社長', ind:'🏦金融',   color:0xe8954f, sub:0xc9732e},
+  {id:'usagi',  name:'うさぎ社長', ind:'🛍️小売',   color:0xf5e3dd, sub:0xe0b8ac},
+  {id:'kotori', name:'ことり社長', ind:'🚢商社',   color:0xf2d05e, sub:0xd8a83a},
+  {id:'kame',   name:'かめ社長',   ind:'🏭製造',   color:0x7cc47f, sub:0x4e8f57},
+];
+
+/* ===== 状態 ===== */
+let scene,camera,renderer;
+let mode=null;                 // 'sensor' | 'finger'
+let phase='menu';              // menu|calib|await|aiming|moving|result
+let pieces=[],tiles=[];
+let turnIdx=0;
+let armed=false,aimOff=0;      // センサー: おさえ中のみ投げ受付
+let dragOn=false,dragSX=0,dragSY=0,dragPow=0,dragAng=0;
+let spikeCap=null,throwCd=0;
+let events=[];                 // このターンの出来事ログ
+let marker,arrowG,arrowShaft,arrowHead;
+let tiltX=0,tiltXsm=0,rotBeta=0,rotPeak=0,baseGX=0,baseGZ=0,lastG={x:0,y:0,z:9.8};
+let prevT=0;
+const el=id=>document.getElementById(id);
+
+/* ===== 音（WebAudioビープ合成） ===== */
+let actx=null;
+function beep(f,d,type='square',g0=0.12){try{actx=actx||new(window.AudioContext||window.webkitAudioContext)();}catch(e){return;}if(actx.state==='suspended')actx.resume();const o=actx.createOscillator(),g=actx.createGain();o.type=type;o.frequency.value=f;g.gain.setValueAtTime(0.0001,actx.currentTime);g.gain.exponentialRampToValueAtTime(g0,actx.currentTime+0.01);g.gain.exponentialRampToValueAtTime(0.0001,actx.currentTime+d);o.connect(g).connect(actx.destination);o.start();o.stop(actx.currentTime+d+0.02);}
+function whack(){if(!actx)return;beep(200,0.08,'square');const n=actx.createBufferSource(),b=actx.createBuffer(1,1500,actx.sampleRate),ch=b.getChannelData(0);for(let i=0;i<1500;i++)ch[i]=(Math.random()*2-1)*(1-i/1500);n.buffer=b;const g=actx.createGain();g.gain.setValueAtTime(0.15,actx.currentTime);g.gain.exponentialRampToValueAtTime(0.001,actx.currentTime+0.12);n.connect(g).connect(actx.destination);n.start();}
+function splashSnd(){beep(340,0.1,'sine');setTimeout(()=>beep(180,0.22,'sine',0.1),70);setTimeout(()=>beep(120,0.3,'sine',0.08),160);}
+function vibrate(ms){if(navigator.vibrate)try{navigator.vibrate(ms);}catch(e){}}
+
+/* ===== 幾何ヘルパ ===== */
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const lerp=(a,b,t)=>a+(b-a)*t;
+
+/* ===== 共有ジオメトリ ===== */
+const GEO={
+  sph:new THREE.SphereGeometry(0.5,18,14),
+  sphLo:new THREE.SphereGeometry(0.5,10,8),
+  cone:new THREE.ConeGeometry(0.5,1,10),
+  box:new THREE.BoxGeometry(1,1,1),
+  cap:new THREE.CapsuleGeometry(0.5,1,4,10),
+};
+function P(g,geo,color,pos,scale,rot,opt={}){
+  const m=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({color,roughness:0.9,flatShading:true,...opt}));
+  if(pos)m.position.set(...pos);if(scale)m.scale.set(...scale);if(rot)m.rotation.set(...rot);
+  g.add(m);return m;
+}
+
+/* ===== Three 初期化 ===== */
+function init3(){
+  scene=new THREE.Scene();
+  scene.background=new THREE.Color(0xbfe0cc);
+  scene.fog=new THREE.Fog(0xbfe0cc,40,90);
+  camera=new THREE.PerspectiveCamera(50,innerWidth/innerHeight,0.1,200);
+  fitCam();
+  renderer=new THREE.WebGLRenderer({antialias:true});
+  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  renderer.setSize(innerWidth,innerHeight);
+  renderer.outputColorSpace=THREE.SRGBColorSpace;
+  el('app').appendChild(renderer.domElement);
+  scene.add(new THREE.HemisphereLight(0xffffff,0x7a9a80,0.95));
+  const sun=new THREE.DirectionalLight(0xfff2d0,1.1);sun.position.set(8,18,10);scene.add(sun);
+  buildBoard();
+  buildPieces();
+  buildMarker();
+  buildArrow();
+  initParticles();
+  addEventListener('resize',()=>{fitCam();renderer.setSize(innerWidth,innerHeight);});
+  prevT=performance.now();loop();
+}
+function fitCam(){
+  const a=innerWidth/innerHeight;
+  camera.aspect=a;
+  const d=a>=0.9?24:24*(0.95/a);   // 縦画面では引いて盤全体を収める
+  camera.position.set(0,d,d*0.6);
+  camera.lookAt(0,0,-0.8);
+  camera.updateProjectionMatrix();
+}
+
+/* ===== 盤面 ===== */
+/* マス種別: start / prop(物件) / event / bank(融資) / tob / tokku(特区) */
+const TILE_DEFS=(()=>{
+  const t=[];
+  for(let i=0;i<BOARD.tileN;i++){
+    let type='prop';
+    if(i===0)type='start';
+    else if(i===3||i===9||i===15||i===21)type='event';
+    else if(i===6)type='bank';
+    else if(i===18)type='tob';
+    t.push(type);
+  }
+  return t;
+})();
+const TILE_STYLE={
+  start:{c:0xf5c84e,emoji:'Ｓ'},
+  prop:{c:0x9ed49a,emoji:'🏪'},
+  event:{c:0xc79ade,emoji:'🎲'},
+  bank:{c:0x8ab8e0,emoji:'🏦'},
+  tob:{c:0xe08a8a,emoji:'📈'},
+  tokku:{c:0xf0b06a,emoji:'💎'},
+};
+const TYPE_NAME={start:'スタート広場',prop:'物件マス',event:'イベントマス',bank:'融資マス',tob:'TOBマス',tokku:'特区'};
+function tileAngle(i){return -Math.PI/2+i*(Math.PI*2/BOARD.tileN);} // i=0が画面上、時計回り
+function makeEmojiSprite(txt,big){
+  const c=document.createElement('canvas');c.width=c.height=96;
+  const x=c.getContext('2d');
+  x.font=(big?'bold 62px':'58px')+" 'Zen Maru Gothic',sans-serif";
+  x.textAlign='center';x.textBaseline='middle';
+  if(big){x.fillStyle='#7a5a20';}
+  x.fillText(txt,48,52);
+  const tex=new THREE.CanvasTexture(c);tex.colorSpace=THREE.SRGBColorSpace;
+  const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true,depthWrite:false}));
+  sp.scale.set(1.25,1.25,1);
+  return sp;
+}
+function buildBoard(){
+  // 土台
+  const base=new THREE.Mesh(new THREE.CylinderGeometry(12.8,13.2,0.6,48),
+    new THREE.MeshStandardMaterial({color:0xd8c99a,roughness:1}));
+  base.position.y=-0.32;scene.add(base);
+  // リング路面
+  const path=new THREE.Mesh(new THREE.RingGeometry(BOARD.chanIn,BOARD.chanOut,64),
+    new THREE.MeshStandardMaterial({color:0xcfe8b8,roughness:1}));
+  path.rotation.x=-Math.PI/2;path.position.y=-0.01;scene.add(path);
+  // 池（内壁と島のあいだ）
+  const pond=new THREE.Mesh(new THREE.RingGeometry(BOARD.islandR,BOARD.chanIn,64),
+    new THREE.MeshStandardMaterial({color:0x58a8c8,roughness:0.4,transparent:true,opacity:0.92}));
+  pond.rotation.x=-Math.PI/2;pond.position.y=-0.04;scene.add(pond);
+  window._pondMat=pond.material;
+  // 中央島
+  const isl=new THREE.Mesh(new THREE.CylinderGeometry(BOARD.islandR,BOARD.islandR+0.3,0.34,40),
+    new THREE.MeshStandardMaterial({color:0xa8d890,roughness:1}));
+  isl.position.y=-0.14;scene.add(isl);
+  // 壁（低いフェンス）
+  for(const[r,cc]of[[BOARD.chanOut,0xb99a68],[BOARD.chanIn,0xb99a68]]){
+    const w=new THREE.Mesh(new THREE.TorusGeometry(r,0.15,8,72),
+      new THREE.MeshStandardMaterial({color:cc,roughness:1}));
+    w.rotation.x=-Math.PI/2;w.position.y=0.18;scene.add(w);
+  }
+  // 外周マス
+  for(let i=0;i<BOARD.tileN;i++){
+    const type=TILE_DEFS[i],st=TILE_STYLE[type];
+    const a=tileAngle(i);
+    const x=Math.cos(a)*BOARD.ringR,z=Math.sin(a)*BOARD.ringR;
+    const m=new THREE.Mesh(GEO.box,new THREE.MeshStandardMaterial({color:st.c,roughness:0.95}));
+    m.scale.set(2.0,0.22,1.5);
+    m.position.set(x,0.06,z);
+    m.rotation.y=-a-Math.PI/2;   // タイルの長辺をリング接線に沿わせる
+    scene.add(m);
+    const sp=makeEmojiSprite(st.emoji,type==='start');
+    sp.position.set(x,0.65,z);scene.add(sp);
+    tiles.push({idx:i,x,z,type,region:'ring'});
+  }
+  // 特区（中央島5マス: 中心+東西南北）
+  const islPos=[[0,0]];
+  for(let k=0;k<4;k++){const a=Math.PI/4+k*Math.PI/2;islPos.push([Math.cos(a)*2.05,Math.sin(a)*2.05]);}
+  islPos.forEach(([x,z],k)=>{
+    const m=new THREE.Mesh(GEO.box,new THREE.MeshStandardMaterial({color:TILE_STYLE.tokku.c,roughness:0.95}));
+    m.scale.set(1.45,0.22,1.45);
+    m.position.set(x,0.06,z);
+    scene.add(m);
+    const sp=makeEmojiSprite(TILE_STYLE.tokku.emoji,false);
+    sp.position.set(x,0.65,z);scene.add(sp);
+    tiles.push({idx:BOARD.tileN+k,x,z,type:'tokku',region:'island'});
+  });
+}
+
+/* ===== コマ（すみっコ風・共通ベース+差分パーツ） ===== */
+function makeBaseBody(color,sub){
+  const g=new THREE.Group();
+  const parts={};
+  parts.body=P(g,GEO.sph,color,[0,0.52,0],[1.24,1.0,1.16]);            // 丸い食パン型
+  P(g,GEO.cap,sub,[-0.3,0.1,0.4],[0.22,0.16,0.22],[Math.PI/2,0,0]);    // ちんまり足
+  P(g,GEO.cap,sub,[0.3,0.1,0.4],[0.22,0.16,0.22],[Math.PI/2,0,0]);
+  P(g,GEO.sph,0x352a20,[-0.2,0.68,0.52],[0.09,0.11,0.06]);             // 点目
+  P(g,GEO.sph,0x352a20,[0.2,0.68,0.52],[0.09,0.11,0.06]);
+  P(g,GEO.sph,0xf0a8b8,[-0.38,0.52,0.46],[0.12,0.08,0.05],null,{transparent:true,opacity:0.7}); // チーク
+  P(g,GEO.sph,0xf0a8b8,[0.38,0.52,0.46],[0.12,0.08,0.05],null,{transparent:true,opacity:0.7});
+  return {g,parts};
+}
+function makePiece(ch){
+  const {g}=makeBaseBody(ch.color,ch.sub);
+  switch(ch.id){
+    case 'kuma':      // 丸耳
+      P(g,GEO.sph,ch.sub,[-0.4,1.02,0],[0.3,0.3,0.2]);
+      P(g,GEO.sph,ch.sub,[0.4,1.02,0],[0.3,0.3,0.2]);
+      P(g,GEO.sph,0xe8d5b8,[0,0.55,0.55],[0.28,0.2,0.14]);   // マズル
+      break;
+    case 'kitsune':   // とがり耳+しっぽ
+      P(g,GEO.cone,ch.sub,[-0.38,1.1,0],[0.32,0.5,0.2]);
+      P(g,GEO.cone,ch.sub,[0.38,1.1,0],[0.32,0.5,0.2]);
+      P(g,GEO.cap,0xf5e8d5,[0,0.4,-0.62],[0.3,0.34,0.3],[1.2,0,0]);   // しっぽ
+      break;
+    case 'usagi':     // 長耳
+      P(g,GEO.cap,ch.sub,[-0.24,1.25,0],[0.2,0.5,0.14],[0,0,-0.12]);
+      P(g,GEO.cap,ch.sub,[0.24,1.25,0],[0.2,0.5,0.14],[0,0,0.12]);
+      break;
+    case 'kotori':    // くちばし+羽
+      P(g,GEO.cone,0xe89040,[0,0.6,0.6],[0.2,0.26,0.2],[Math.PI/2,0,0]);
+      P(g,GEO.sph,ch.sub,[-0.6,0.5,0],[0.2,0.36,0.36]);
+      P(g,GEO.sph,ch.sub,[0.6,0.5,0],[0.2,0.36,0.36]);
+      P(g,GEO.sph,0xd8a83a,[0,1.05,0],[0.16,0.12,0.16]);     // 頭の毛
+      break;
+    case 'kame':      // 甲羅
+      P(g,GEO.sph,ch.sub,[0,0.62,-0.28],[0.92,0.72,0.7],null,{flatShading:true});
+      break;
+  }
+  g.traverse(m=>{if(m.isMesh)m.castShadow=false;});
+  return g;
+}
+function buildPieces(){
+  const startT=tiles[0];
+  CHARS.forEach((ch,i)=>{
+    const mesh=makePiece(ch);
+    scene.add(mesh);
+    const p={
+      i,ch,mesh,
+      x:startT.x,z:startT.z,y:0,vx:0,vz:0,
+      state:'stop',              // stop|roll|fly|splash
+      region:'ring',sq:0,lastSq:0,
+      flyT:0,flyDur:1,flyH:3,
+      splashT:0,
+    };
+    pieces.push(p);
+  });
+  spreadSharedTiles();
+  syncMeshes();
+}
+
+/* ===== 手番マーカーと矢印ガイド ===== */
+function buildMarker(){
+  marker=new THREE.Mesh(GEO.cone,new THREE.MeshStandardMaterial({color:0xff6a5a,emissive:0x80251c,roughness:0.6}));
+  marker.scale.set(0.5,0.6,0.5);
+  marker.rotation.x=Math.PI;
+  marker.visible=false;
+  scene.add(marker);
+}
+function buildArrow(){
+  arrowG=new THREE.Group();
+  const mat=new THREE.MeshBasicMaterial({color:0xff8a4a,transparent:true,opacity:0.85,depthWrite:false});
+  arrowShaft=new THREE.Mesh(GEO.box,mat);
+  arrowShaft.scale.set(1,0.06,0.3);
+  arrowHead=new THREE.Mesh(GEO.cone,mat.clone());
+  arrowHead.scale.set(0.6,0.9,0.6);
+  arrowHead.rotation.z=-Math.PI/2;
+  arrowG.add(arrowShaft,arrowHead);
+  arrowG.position.y=0.3;
+  arrowG.visible=false;
+  scene.add(arrowG);
+}
+function setArrow(p,ang,len,hot){
+  arrowG.visible=true;
+  arrowG.position.set(p.x,0.3,p.z);
+  arrowG.rotation.y=-ang;
+  arrowShaft.scale.x=len;
+  arrowShaft.position.x=len/2+BOARD.pieceR;
+  arrowHead.position.x=len+BOARD.pieceR+0.4;
+  const c=hot?0xff5a3a:0xffb04a;
+  arrowShaft.material.color.setHex(c);
+  arrowHead.material.color.setHex(c);
+}
+
+/* ===== パーティクル（土けむり・水しぶき） ===== */
+const PMAX=120;
+let pGeo,pPts,pPos,pCol,pVel,pLife,pIdx=0;
+function makeDotTexture(){
+  const c=document.createElement('canvas');c.width=c.height=64;
+  const x=c.getContext('2d');
+  const g=x.createRadialGradient(32,32,0,32,32,32);
+  g.addColorStop(0,'rgba(255,255,255,1)');g.addColorStop(0.4,'rgba(255,255,255,.8)');g.addColorStop(1,'rgba(255,255,255,0)');
+  x.fillStyle=g;x.fillRect(0,0,64,64);
+  const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;return t;
+}
+function initParticles(){
+  pPos=new Float32Array(PMAX*3);pCol=new Float32Array(PMAX*3);
+  pVel=new Float32Array(PMAX*3);pLife=new Float32Array(PMAX);
+  for(let i=0;i<PMAX;i++)pPos[i*3+1]=-999;
+  pGeo=new THREE.BufferGeometry();
+  pGeo.setAttribute('position',new THREE.BufferAttribute(pPos,3));
+  pGeo.setAttribute('color',new THREE.BufferAttribute(pCol,3));
+  pPts=new THREE.Points(pGeo,new THREE.PointsMaterial({size:0.35,map:makeDotTexture(),vertexColors:true,transparent:true,opacity:0.95,depthWrite:false}));
+  pPts.frustumCulled=false;scene.add(pPts);
+}
+const tmpC=new THREE.Color();
+function emit(x,y,z,color,n,spread,vy0,life){
+  tmpC.set(color);
+  for(let k=0;k<n;k++){
+    const i=pIdx=(pIdx+1)%PMAX;
+    pPos[i*3]=x;pPos[i*3+1]=y;pPos[i*3+2]=z;
+    pVel[i*3]=(Math.random()-0.5)*spread;
+    pVel[i*3+1]=vy0+Math.random()*spread*0.5;
+    pVel[i*3+2]=(Math.random()-0.5)*spread;
+    pCol[i*3]=tmpC.r;pCol[i*3+1]=tmpC.g;pCol[i*3+2]=tmpC.b;
+    pLife[i]=life*(0.6+Math.random()*0.6);
+  }
+}
+function stepParticles(dt){
+  for(let i=0;i<PMAX;i++){
+    if(pLife[i]<=0)continue;
+    pLife[i]-=dt;
+    pVel[i*3+1]-=9*dt;
+    pPos[i*3]+=pVel[i*3]*dt;
+    pPos[i*3+1]+=pVel[i*3+1]*dt;
+    pPos[i*3+2]+=pVel[i*3+2]*dt;
+    if(pPos[i*3+1]<0)pPos[i*3+1]=0;
+    if(pLife[i]<=0)pPos[i*3+1]=-999;
+  }
+  pGeo.attributes.position.needsUpdate=true;
+  pGeo.attributes.color.needsUpdate=true;
+}
+
+/* ===== センサー ===== */
+function onMotion(e){
+  const g=e.accelerationIncludingGravity;
+  if(g&&g.x!=null){lastG={x:g.x,y:g.y,z:g.z};
+    tiltX=(g.x-baseGX)/9.8;
+  }
+  const r=e.rotationRate;
+  if(r&&r.beta!=null)rotBeta=r.beta;else if(r&&r.alpha!=null)rotBeta=r.alpha;
+  const ab=Math.abs(rotBeta);
+  if(ab>rotPeak)rotPeak=ab;
+  // スパイク検知: おさえている間(armed)のみ受付。発動後は少し様子見してピークをパワーにする
+  if(phase==='aiming'&&mode==='sensor'&&armed&&throwCd<=0&&!spikeCap&&ab>TUNE.spikeThr){
+    spikeCap={peak:ab,t:performance.now()};
+  }
+  if(spikeCap&&ab>spikeCap.peak)spikeCap.peak=ab;
+}
+async function requestSensor(){
+  try{
+    if(typeof DeviceMotionEvent!=='undefined'&&typeof DeviceMotionEvent.requestPermission==='function'){
+      const p=await DeviceMotionEvent.requestPermission();
+      if(p!=='granted')return false;
+    }
+    window.addEventListener('devicemotion',onMotion);
+    return await new Promise(res=>{
+      let got=false;const h=()=>{got=true;};
+      window.addEventListener('devicemotion',h,{once:true});
+      setTimeout(()=>{window.removeEventListener('devicemotion',h);res(got);},700);
+    });
+  }catch(e){return false;}
+}
+function calibrate(){
+  el('start').classList.add('hidden');
+  el('calib').classList.remove('hidden');
+  phase='calib';
+  let n=3;el('calibCnt').textContent=n;
+  const sx=[],sz=[];
+  const iv=setInterval(()=>{
+    sx.push(lastG.x);sz.push(lastG.z);
+    n--;el('calibCnt').textContent=n>0?n:'GO!';
+    beep(n>0?520:880,0.08);
+    if(n<=0){clearInterval(iv);
+      const avg=a=>a.length?a.reduce((p,c)=>p+c,0)/a.length:0;
+      baseGX=avg(sx);baseGZ=avg(sz);
+      setTimeout(()=>{el('calib').classList.add('hidden');startPlay();},350);}
+  },750);
+}
+
+/* ===== 入力 ===== */
+const onUI=e=>e.target&&e.target.closest&&e.target.closest('#dbg,#dbgBtn,.overlay');
+function bindInput(){
+  window.addEventListener('pointerdown',e=>{
+    if(onUI(e))return;
+    if(phase==='await'){beginAim();return;}
+    if(phase==='result'){nextTurn();return;}
+    if(phase!=='aiming')return;
+    if(mode==='sensor'){
+      armed=true;el('armB').style.display='block';
+    }else{
+      dragOn=true;dragSX=e.clientX;dragSY=e.clientY;dragPow=0;
+      el('powerWrap').style.display='block';
+    }
+  });
+  window.addEventListener('pointermove',e=>{
+    if(phase!=='aiming'||mode!=='finger'||!dragOn)return;
+    const dx=e.clientX-dragSX,dy=e.clientY-dragSY;
+    const d=Math.hypot(dx,dy);
+    dragPow=clamp(d/TUNE.dragMax,0,1);
+    // 引きの逆方向へ発射（画面x→ワールドx、画面y→ワールドz）
+    dragAng=Math.atan2(-dy,-dx);
+    el('powerFill').style.width=(dragPow*100)+'%';
+  });
+  window.addEventListener('pointerup',e=>{
+    if(mode==='sensor'){armed=false;spikeCap=null;el('armB').style.display='none';return;}
+    if(phase!=='aiming'||!dragOn)return;
+    dragOn=false;el('powerWrap').style.display='none';
+    if(dragPow>0.1)doThrow(dragPow,dragAng);
+    el('powerFill').style.width='0%';
+  });
+}
+
+/* ===== ねらいの基準角（リング接線・時計回り） ===== */
+function aimBase(p){
+  const t=Math.atan2(p.z,p.x);
+  return p.region==='island'?t:t+Math.PI/2;  // 島からは外向きが基準
+}
+
+/* ===== 投擲 ===== */
+function doThrow(power,ang){
+  const p=cur();
+  p.lastSq=p.sq;
+  events.length=0;
+  throwCd=0.6;spikeCap=null;
+  armed=false;el('armB').style.display='none';
+  arrowG.visible=false;marker.visible=false;
+  const dir={x:Math.cos(ang),z:Math.sin(ang)};
+  const fromIsland=p.region==='island';
+  if(power>=TUNE.loftPow||fromIsland){
+    // 山なり弾道: パワーで距離と高さが決まる（プレイヤーは弾道を別操作しない）
+    const k=fromIsland?clamp((power-0.15)/0.85,0,1):clamp((power-TUNE.loftPow)/(1-TUNE.loftPow),0,1);
+    const dist=fromIsland?lerp(5,TUNE.loftMaxD,k):lerp(TUNE.loftMinD,TUNE.loftMaxD,k);
+    p.flyDur=0.75+0.45*power;
+    p.flyT=0;
+    p.flyH=1.8+3.4*power;
+    p.vx=dir.x*dist/p.flyDur;
+    p.vz=dir.z*dist/p.flyDur;
+    p.state='fly';
+    beep(620,0.1,'triangle');beep(880,0.08,'triangle');
+  }else{
+    // 転がし: リング沿いに壁ガイドで進む
+    const v0=power/TUNE.loftPow*TUNE.rollV;
+    p.vx=dir.x*v0;p.vz=dir.z*v0;
+    p.state='roll';
+    beep(520,0.08,'triangle');
+  }
+  vibrate(30);
+  el('hint').textContent='パワー '+Math.round(power*100)+'%！';
+  phase='moving';
+}
+
+/* ===== 物理 ===== */
+function land(p){
+  p.y=0;
+  const r=Math.hypot(p.x,p.z);
+  p.vx*=FLIGHT_KEEP;p.vz*=FLIGHT_KEEP;
+  if(r<BOARD.islandR-0.2){
+    p.region='island';p.state='roll';
+    emit(p.x,0.3,p.z,0xd8c9a0,8,3,2,0.5);
+    beep(300,0.06);
+  }else if(r<BOARD.chanIn-0.1){
+    startSplash(p,'いけポチャ！ 🌊 もとのマスへ…');
+  }else if(r<=BOARD.chanOut+0.4){
+    p.region='ring';p.state='roll';
+    emit(p.x,0.3,p.z,0xd8c9a0,8,3,2,0.5);
+    beep(300,0.06);
+  }else{
+    startSplash(p,'コースアウト！ 💨 もとのマスへ…');
+  }
+}
+function startSplash(p,msg){
+  p.state='splash';p.splashT=0;p.vx=0;p.vz=0;
+  if(p===cur())events.push(msg);
+  else events.push(p.ch.name+'が'+(msg.startsWith('いけ')?'池に落ちた！もとのマスへ':'場外へ！もとのマスへ'));
+  emit(p.x,0.2,p.z,0x8ad4f0,16,4,3.5,0.7);
+  splashSnd();vibrate(60);
+}
+function nearestTile(p){
+  let best=null,bd=1e9;
+  for(const t of tiles){
+    if(t.region!==p.region)continue;
+    const d=Math.hypot(t.x-p.x,t.z-p.z);
+    if(d<bd){bd=d;best=t;}
+  }
+  return {tile:best,d:bd};
+}
+function stepPhysics(dt){
+  for(const p of pieces){
+    if(p.state==='fly'){
+      p.flyT+=dt;
+      const s=p.flyT/p.flyDur;
+      if(s>=1){land(p);}
+      else{
+        p.x+=p.vx*dt;p.z+=p.vz*dt;
+        p.y=p.flyH*4*s*(1-s);
+      }
+    }else if(p.state==='roll'){
+      const f=Math.exp(-TUNE.fric*dt);
+      p.vx*=f;p.vz*=f;
+      let sp=Math.hypot(p.vx,p.vz);
+      if(sp<1.0){const k=Math.max(0,sp-1.5*dt)/(sp||1);p.vx*=k;p.vz*=k;sp=Math.hypot(p.vx,p.vz);}
+      p.x+=p.vx*dt;p.z+=p.vz*dt;
+      const r=Math.hypot(p.x,p.z)||1e-6;
+      if(p.region==='ring'){
+        // 外壁・内壁で反射（リング沿いガイド）
+        const nx=p.x/r,nz=p.z/r,pr=BOARD.pieceR;
+        if(r>BOARD.chanOut-pr){
+          const pen=r-(BOARD.chanOut-pr);
+          p.x-=nx*pen;p.z-=nz*pen;
+          const vr=p.vx*nx+p.vz*nz;
+          if(vr>0){p.vx-=(1+TUNE.wallRest)*vr*nx;p.vz-=(1+TUNE.wallRest)*vr*nz;if(vr>2)beep(240,0.04);}
+        }else if(r<BOARD.chanIn+pr){
+          const pen=(BOARD.chanIn+pr)-r;
+          p.x+=nx*pen;p.z+=nz*pen;
+          const vr=p.vx*nx+p.vz*nz;
+          if(vr<0){p.vx-=(1+TUNE.wallRest)*vr*nx;p.vz-=(1+TUNE.wallRest)*vr*nz;if(vr<-2)beep(240,0.04);}
+        }
+      }else{
+        // 島: ふちを越えたら池ポチャ
+        if(r>BOARD.islandR-0.35){startSplash(p,'いけポチャ！ 🌊 もとのマスへ…');continue;}
+      }
+      // マス吸着: 遅くなったら最寄りマスへ磁石スナップ
+      sp=Math.hypot(p.vx,p.vz);
+      if(sp<TUNE.snapV){
+        const {tile,d}=nearestTile(p);
+        if(tile&&(d<TUNE.snapR||sp<0.3)){
+          const inv=1/(d||1e-6);
+          p.vx+=(tile.x-p.x)*inv*TUNE.snapAcc*dt;
+          p.vz+=(tile.z-p.z)*inv*TUNE.snapAcc*dt;
+          const dm=Math.exp(-3.5*dt);p.vx*=dm;p.vz*=dm;
+          if(d<0.12&&Math.hypot(p.vx,p.vz)<1.0){
+            p.x=tile.x;p.z=tile.z;p.vx=0;p.vz=0;
+            p.state='stop';p.sq=tile.idx;
+            beep(760,0.06,'sine');
+            if(p===cur())events.push(TYPE_NAME[tile.type]+'（'+(tile.region==='ring'?'マス'+tile.idx:'特区')+'）にとまった！');
+          }
+        }
+      }
+    }else if(p.state==='splash'){
+      p.splashT+=dt;
+      p.y=-p.splashT*1.6;
+      if(p.splashT>=SPLASH_T){
+        const t=tiles[p.lastSq];
+        p.x=t.x;p.z=t.z;p.y=0;p.vx=0;p.vz=0;
+        p.state='stop';p.sq=t.idx;p.region=t.region;
+        emit(p.x,0.4,p.z,0xffffff,6,2,2,0.4);
+        beep(500,0.06,'sine');
+      }
+    }
+  }
+  // コマ同士の衝突（接地中のみ。等質量・反発係数）
+  for(let i=0;i<pieces.length;i++)for(let j=i+1;j<pieces.length;j++){
+    const a=pieces[i],b=pieces[j];
+    if(a.state==='fly'||b.state==='fly'||a.state==='splash'||b.state==='splash')continue;
+    const dx=b.x-a.x,dz=b.z-a.z,d=Math.hypot(dx,dz),min=BOARD.pieceR*2;
+    if(d<=1e-6||d>=min)continue;
+    const nx=dx/d,nz=dz/d,ov=(min-d)/2;
+    a.x-=nx*ov;a.z-=nz*ov;b.x+=nx*ov;b.z+=nz*ov;
+    const avn=a.vx*nx+a.vz*nz,bvn=b.vx*nx+b.vz*nz;
+    const rel=avn-bvn;
+    if(rel<=0)continue;
+    const e=TUNE.rest;
+    const aNew=((1-e)*avn+(1+e)*bvn)/2,bNew=((1+e)*avn+(1-e)*bvn)/2;
+    a.vx+=(aNew-avn)*nx;a.vz+=(aNew-avn)*nz;
+    b.vx+=(bNew-bvn)*nx;b.vz+=(bNew-bvn)*nz;
+    if(rel>1.2){
+      whack();vibrate(40);
+      for(const t of[a,b])if(t.state==='stop'){
+        t.state='roll';t.lastSq=t.sq;
+        if(t!==cur())events.push(t.ch.name+'を はじきとばした！');
+      }
+      emit((a.x+b.x)/2,0.5,(a.z+b.z)/2,0xfff0a0,6,3,2,0.4);
+    }else{
+      for(const t of[a,b])if(t.state==='stop'&&Math.hypot(t.vx,t.vz)>0.2){t.state='roll';t.lastSq=t.sq;}
+    }
+  }
+}
+function anyMoving(){return pieces.some(p=>p.state!=='stop');}
+
+/* ===== 同一マスのコマをずらして表示 ===== */
+function spreadSharedTiles(){
+  const groups={};
+  for(const p of pieces){(groups[p.sq]=groups[p.sq]||[]).push(p);}
+  for(const k in groups){
+    const g=groups[k];
+    if(g.length<2)continue;
+    const t=tiles[+k];
+    g.forEach((p,n)=>{
+      const a=n/g.length*Math.PI*2+0.6;
+      p.x=t.x+Math.cos(a)*0.42;
+      p.z=t.z+Math.sin(a)*0.42;
+    });
+  }
+}
+
+/* ===== 手番フロー ===== */
+const cur=()=>pieces[turnIdx];
+function showTurn(){
+  const p=cur();
+  el('turnB').classList.remove('hidden');
+  el('turnName').textContent=p.ch.name+'の番！';
+  el('turnSub').textContent=p.ch.ind+'　スマホを渡してね';
+  el('hint').classList.remove('hidden');
+  el('hint').textContent='タップでかまえる';
+  phase='await';
+}
+function beginAim(){
+  phase='aiming';
+  beep(440,0.05);
+  el('hint').textContent=mode==='sensor'
+    ?'おさえながら かたむけてねらい、くいっとスナップ！'
+    :'ひっぱって はなす！（長くひっぱるほど強い）';
+}
+function finishMotion(){
+  spreadSharedTiles();
+  syncMeshes();
+  const p=cur();
+  if(!events.some(s=>s.includes('とまった')||s.includes('もとのマス'))){
+    const t=tiles[p.sq];
+    events.push(TYPE_NAME[t.type]+'にとまった！');
+  }
+  el('resultT').textContent=p.ch.name;
+  el('resultS').innerHTML=events.join('<br>');
+  el('resultPop').style.display='flex';
+  phase='result';
+  beep(660,0.08,'sine');
+}
+function nextTurn(){
+  el('resultPop').style.display='none';
+  turnIdx=(turnIdx+1)%pieces.length;
+  showTurn();
+}
+function startPlay(){
+  el('dbgBtn').classList.remove('hidden');
+  showTurn();
+}
+function resetPieces(){
+  const t=tiles[0];
+  for(const p of pieces){
+    p.x=t.x;p.z=t.z;p.y=0;p.vx=0;p.vz=0;
+    p.state='stop';p.sq=0;p.lastSq=0;p.region='ring';
+  }
+  spreadSharedTiles();syncMeshes();
+  if(phase==='moving'||phase==='result'){el('resultPop').style.display='none';showTurn();}
+  beep(520,0.06);
+}
+
+/* ===== 描画同期・ループ ===== */
+function syncMeshes(){
+  for(const p of pieces){
+    p.mesh.position.set(p.x,p.y,p.z);
+    const sp=Math.hypot(p.vx,p.vz);
+    if(sp>0.5)p.mesh.rotation.y=-Math.atan2(p.vz,p.vx)+Math.PI/2;
+  }
+}
+let settleGrace=0,moveTimeout=0;
+function loop(){
+  requestAnimationFrame(loop);
+  const now=performance.now();
+  let dt=Math.min((now-prevT)/1000,0.033);prevT=now;
+  if(throwCd>0)throwCd-=dt;
+
+  // センサーの遅延ピーク確定→投擲発動
+  if(spikeCap&&now-spikeCap.t>130&&phase==='aiming'){
+    const pow=clamp((spikeCap.peak-TUNE.spikeThr)/(TUNE.spikeMax-TUNE.spikeThr),0.12,1);
+    const ang=aimBase(cur())+clamp(tiltXsm/TUNE.tiltFull,-1,1)*(TUNE.aimRange*Math.PI/180);
+    spikeCap=null;
+    doThrow(pow,ang);
+  }
+  tiltXsm+=(tiltX-tiltXsm)*Math.min(1,dt*8);
+
+  if(phase==='moving'){
+    stepPhysics(dt);
+    syncMeshes();
+    moveTimeout+=dt;
+    if(!anyMoving()){
+      settleGrace+=dt;
+      if(settleGrace>0.25){settleGrace=0;moveTimeout=0;finishMotion();}
+    }else settleGrace=0;
+    if(moveTimeout>8){ // 保険: 8秒で強制整着（ターンが止まるバグ防止）
+      for(const p of pieces)if(p.state!=='stop'){
+        const {tile}=nearestTile(p);
+        if(tile){p.x=tile.x;p.z=tile.z;p.sq=tile.idx;}
+        p.vx=0;p.vz=0;p.y=0;p.state='stop';
+      }
+      moveTimeout=0;settleGrace=0;finishMotion();
+    }
+  }else{moveTimeout=0;}
+
+  // 手番マーカー＆ねらい矢印
+  if(phase==='await'||phase==='aiming'){
+    const p=cur();
+    marker.visible=true;
+    marker.position.set(p.x,2.0+Math.sin(now/300)*0.18,p.z);
+    if(phase==='aiming'){
+      if(mode==='sensor'){
+        const ang=aimBase(p)+clamp(tiltXsm/TUNE.tiltFull,-1,1)*(TUNE.aimRange*Math.PI/180);
+        setArrow(p,ang,3.2,armed);
+      }else if(dragOn&&dragPow>0.05){
+        setArrow(p,dragAng,1+dragPow*4.5,dragPow>0.8);
+      }else arrowG.visible=false;
+    }else arrowG.visible=false;
+  }else{marker.visible=false;arrowG.visible=false;}
+
+  // 池のゆらぎ
+  if(window._pondMat)window._pondMat.opacity=0.88+Math.sin(now/900)*0.05;
+
+  stepParticles(dt);
+  updateDbg();
+  renderer.render(scene,camera);
+}
+
+/* ===== デバッグパネル ===== */
+const DBG_KEYS=['spikeThr','spikeMax','aimRange','dragMax','rollV','loftPow','loftMaxD','fric','rest','wallRest','snapR','snapV'];
+function fmtV(k,v){return (k==='loftPow'||k==='rest'||k==='wallRest'||k==='fric'||k==='snapR'||k==='snapV'||k==='rollV'||k==='loftMaxD')?(+v).toFixed(2).replace(/\.?0+$/,''):Math.round(v)+'';}
+function bindDbg(){
+  for(const k of DBG_KEYS){
+    const s=el('s_'+k);if(!s)continue;
+    s.value=TUNE[k];el('v_'+k).textContent=fmtV(k,TUNE[k]);
+    s.oninput=()=>{TUNE[k]=+s.value;el('v_'+k).textContent=fmtV(k,TUNE[k]);saveTune();};
+  }
+  el('dbgBtn').onclick=()=>el('dbg').classList.toggle('hidden');
+  el('resetBtn').onclick=resetPieces;
+  el('tuneResetBtn').onclick=()=>{TUNE={...TUNE_DEF};saveTune();bindDbg();beep(440,0.06);};
+}
+function saveTune(){try{localStorage.setItem('nagekoma_tune',JSON.stringify(TUNE));}catch(e){}}
+function updateDbg(){
+  if(el('dbg').classList.contains('hidden'))return;
+  el('v_now').textContent='tilt:'+tiltX.toFixed(2)+' rot:'+Math.abs(rotBeta).toFixed(0)+' peak:'+rotPeak.toFixed(0);
+}
+
+/* ===== エントリ ===== */
+el('startBtn').onclick=async()=>{
+  beep(440,0.05);
+  const ok=await requestSensor();
+  if(!ok){el('startBtn').textContent='センサー使えず…指モードでどうぞ';setTimeout(()=>{el('startBtn').textContent='📱 センサーで遊ぶ';},2200);return;}
+  mode='sensor';
+  calibrate();
+};
+el('fingerBtn').onclick=()=>{
+  beep(440,0.05);mode='finger';
+  el('start').classList.add('hidden');
+  startPlay();
+};
+bindInput();
+bindDbg();
+init3();
+</script>
+</body>
+</html>
