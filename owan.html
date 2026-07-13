@@ -53,6 +53,10 @@
   #slotReels{display:flex;gap:8px;justify-content:center}
   .slotReel{background:#fffdf4;border:3px solid #b8860b;border-radius:10px;min-width:64px;max-width:150px;padding:10px 8px;font-size:13px;font-weight:900;color:#3a2f22;box-shadow:inset 0 3px 8px rgba(0,0,0,.2)}
   #slotTap{font-size:11px;font-weight:700;color:#e8d8b0;opacity:.7;margin-top:12px}
+  #holdBtn{position:fixed;bottom:26px;left:12px;z-index:7;pointer-events:auto;cursor:pointer;font-family:inherit;font-size:12px;font-weight:900;color:#2e6b45;background:rgba(255,252,242,.94);border:2px solid #4f9e6c;border-radius:999px;padding:10px 14px;box-shadow:0 6px 16px rgba(0,0,0,.25)}
+  #holdPop{position:fixed;inset:0;z-index:15;display:none;align-items:center;justify-content:center;pointer-events:auto;background:rgba(0,0,0,.3)}
+  #holdCard{background:rgba(255,252,242,.97);border:3px solid var(--line);border-radius:20px;padding:18px 20px;text-align:center;max-width:88vw;max-height:78vh;overflow:auto;box-shadow:0 14px 40px rgba(0,0,0,.4);animation:popin .22s ease-out}
+  #holdList{min-width:min(78vw,300px)}
   #dbgBtn{position:fixed;top:10px;right:10px;z-index:8;pointer-events:auto;cursor:pointer;width:36px;height:36px;border-radius:50%;border:2px solid var(--line);background:rgba(255,252,242,.92);color:var(--txt);font-weight:900;font-size:16px;font-family:inherit}
   #dbg{position:fixed;top:54px;right:8px;z-index:8;background:rgba(255,252,242,.96);border:2px solid var(--line);border-radius:14px;padding:10px 12px;width:240px;font-size:11px;font-weight:700;max-height:78vh;overflow:auto;pointer-events:auto}
   #dbg label{display:block;margin-top:7px}
@@ -141,6 +145,13 @@
 
 <div id="slotPop"><div id="slotCard"><div id="slotTitle">-</div><div id="slotReels"></div><div id="slotTap">タップでスキップ</div></div></div>
 
+<button id="holdBtn" class="hidden">📊 もちもの</button>
+<div id="holdPop"><div id="holdCard">
+  <div style="font-size:16px;font-weight:900;margin-bottom:8px">📊 もちもの（いつでも売れる）</div>
+  <div id="holdList"></div>
+  <button class="btn sub2" id="holdCloseBtn" style="margin-top:14px">とじる</button>
+</div></div>
+
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
 <script type="module">
 import * as THREE from 'three';
@@ -199,6 +210,27 @@ const HOP_T=0.34;        // 1マス移動の秒数（ゆっくりめ。タップ
 const KEIBA_BET=50,KEIBA_PAY=300;   // 有馬記念: 賭け金・的中配当（期待値±0）
 const SLOT_BET=30;                  // カジノスロット: 参加費（期待値+15万ぶん甘め）
 const SLOT_SYMS=['7️⃣','🍒','🔔','⭐','🍀'];
+
+/* ===== 📊投資マスの定数（債券・投資信託・仕手株。バランスはここを直すだけ） ===== */
+const BOND_PRICE=100,BOND_COUPON=5;      // 債券: 固定100万、毎ラウンド+5万の利息（無リスク）
+const FUND_INIT=100;                     // 投資信託: 初期価格（毎ラウンド ×0.97〜1.08で微増ドリフト）
+let fundPrice=FUND_INIT;
+const STOCK_PRICE_MIN=10;                // 株価下限（紙くず防止）
+const STOCKS=[   // 仕手株5銘柄。配当なし・乱高下（±20%通常変動＋15%/銘柄/ラウンドでニュース）
+  {name:'キノコバイオ製薬',  emoji:'🍄',price:100},
+  {name:'ドングリコイン',    emoji:'🪙',price:60},
+  {name:'ハニーゴールド鉱業',emoji:'⛏️',price:120},
+  {name:'モリモリ宇宙電力',  emoji:'🚀',price:150},
+  {name:'リスカーゴＨＤ',    emoji:'📦',price:80},
+];
+const STOCKS_INIT=STOCKS.map(s=>s.price);
+const STOCK_NEWS=[
+  {h:'好決算サプライズ！',    m:1.2},{h:'大型ていけいが発表！',m:1.4},
+  {h:'新技術の開発に成功！',  m:1.6},{h:'ストップ高れんぱつ！',m:1.8},
+  {h:'リコールで大炎上…',    m:0.7},{h:'社長が雲がくれ…',    m:0.6},
+  {h:'粉飾決算が発覚…',      m:0.5},{h:'上場はいしの危機！',  m:0.3},
+];
+let stockNewsLog=[];   // このラウンドで発生したニュース（roundSummaryの市況欄で表示）
 
 /* ===== イベント（fx=効果タイプ, v=数値。バランスはここを直すだけ） =====
    💼しごとマス=現金±中心／📰ニュースマス=全体・業界ネタ／🧑‍💼人材マス=移動・特殊 の3カテゴリに分割 */
@@ -957,11 +989,14 @@ function buildBoardPieces(){
     const mesh=makeAnimalPiece(ch);
     sceneBoard.add(mesh);
     pieces.push({i,ch,cash:START_CASH,pos:0,x:tiles[0].x,z:tiles[0].z,y:0,
-      queue:[],hopFrom:null,hopTarget:0,hopT:0,doubleNext:false,shieldRent:false,mesh});
+      queue:[],hopFrom:null,hopTarget:0,hopT:0,doubleNext:false,shieldRent:false,mesh,
+      bonds:0,funds:0,shares:[0,0,0,0,0]});
   });
   spreadPieces();syncPieces();
 }
-const assets=p=>p.cash+tiles.reduce((s,t)=>s+(t.owner===p.i?t.price:0),0);
+const assets=p=>p.cash+tiles.reduce((s,t)=>s+(t.owner===p.i?t.price:0),0)
+  +p.bonds*BOND_PRICE+p.funds*fundPrice+p.shares.reduce((s,n,i)=>s+n*STOCKS[i].price,0);
+const hasHoldings=p=>!!p&&(p.bonds>0||p.funds>0||p.shares.some(n=>n>0));
 function spreadPieces(){
   const groups={};
   for(const p of pieces){(groups[p.pos]=groups[p.pos]||[]).push(p);}
@@ -1127,7 +1162,7 @@ function landPlayer(p,depth){
   }else if(t.type==='leisure'){
     landLeisure(p);
   }else if(t.type==='invest'){
-    showBalloon(p,'📊 投資','（つぎのアップデートで遊べるようになるのだ）',true,()=>afterLand(p));
+    landInvest(p);
   }else{ // prop
     if(t.owner==null){
       if(p.cash>=t.price){
@@ -1269,6 +1304,85 @@ function playLeisureSlot(p){
     }
   });
 }
+/* ===== 📊投資マス: 債券・投資信託・仕手株（着地で1つだけ購入。売却は毎手番「もちもの」から） ===== */
+function landInvest(p){
+  menuPop('📊 '+p.ch.emoji+p.ch.name+'　投資マス！なにを買う？',[
+    {label:'🏦 債券を買う',sub:canAfford(p,BOND_PRICE)?(BOND_PRICE+'万・毎月+'+BOND_COUPON+'万の利息（かたい）'):'お金がたりない…',disabled:!canAfford(p,BOND_PRICE),onPick:()=>buyBond(p)},
+    {label:'📊 投資信託を買う',sub:canAfford(p,fundPrice)?('1口'+fundPrice+'万・じわじわ値上がり'):'お金がたりない…',disabled:!canAfford(p,fundPrice),onPick:()=>buyFund(p)},
+    {label:'🚀 仕手株を買う',sub:'一発逆転ねらい！（銘柄をえらぶ）',onPick:()=>menuPop('🚀 どの銘柄を買う？',
+      STOCKS.map((s,i)=>({label:s.emoji+' '+s.name,sub:canAfford(p,s.price)?('現在値'+s.price+'万'):'お金がたりない…',disabled:!canAfford(p,s.price),onPick:()=>buyStock(p,i)})))},
+    {label:'やめておく',sub2:true,onPick:()=>{beep(300,0.06);afterLand(p);}},
+  ]);
+}
+function canAfford(p,cost){return p.cash>=cost;}
+function buyBond(p){
+  p.cash-=BOND_PRICE;p.bonds++;
+  reasonsRound[p.i].push('債券購入-'+BOND_PRICE);
+  showBalloon(p,'🏦 債券購入！',BOND_PRICE+'万で1枚。毎月+'+BOND_COUPON+'万の利息が入るのだ',true,()=>afterLand(p));
+}
+function buyFund(p){
+  const cost=fundPrice;
+  p.cash-=cost;p.funds++;
+  reasonsRound[p.i].push('投信購入-'+cost);
+  showBalloon(p,'📊 投資信託購入！',cost+'万で1口買った！じわじわ値上がりに期待なのだ',true,()=>afterLand(p));
+}
+function buyStock(p,i){
+  const s=STOCKS[i];
+  p.cash-=s.price;p.shares[i]++;
+  reasonsRound[p.i].push(s.emoji+'購入-'+s.price);
+  showBalloon(p,'🚀 '+s.name+'購入！',s.price+'万で1株買った！大化けするかも…',true,()=>afterLand(p));
+}
+/* ===== もちもの（毎手番いつでも売れる。投げる前のお椀シーンで操作） ===== */
+function openPortfolio(){
+  if(phase!=='await'||gambleCtx)return;
+  renderPortfolio(pieces[order[throwIdx]]);
+  el('holdPop').style.display='flex';
+  phase='holdPop';
+  beep(500,0.05);
+}
+function closePortfolio(){
+  el('holdPop').style.display='none';
+  phase='await';
+  beep(400,0.05);
+}
+function renderPortfolio(p){
+  const rows=[];
+  if(p.bonds>0)rows.push({label:'🏦 債券 ×'+p.bonds,sub:'1枚 売却額'+BOND_PRICE+'万',onSell:()=>sellHolding(p,'bond')});
+  if(p.funds>0)rows.push({label:'📊 投資信託 ×'+p.funds,sub:'現在値'+fundPrice+'万',onSell:()=>sellHolding(p,'fund')});
+  STOCKS.forEach((s,i)=>{if(p.shares[i]>0)rows.push({label:s.emoji+' '+s.name+' ×'+p.shares[i],sub:'現在値'+s.price+'万',onSell:()=>sellHolding(p,'stock',i)});});
+  const wrap=el('holdList');
+  wrap.innerHTML='';
+  if(!rows.length){
+    wrap.innerHTML='<div style="font-size:12px;opacity:.7;padding:10px 0">もちものはまだないのだ</div>';
+    return;
+  }
+  for(const r of rows){
+    const row=document.createElement('div');
+    row.style.cssText='display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 2px;border-bottom:1px solid rgba(120,100,60,.18);text-align:left';
+    const info=document.createElement('div');
+    info.innerHTML='<div style="font-weight:900;font-size:13px">'+r.label+'</div><div style="font-size:11px;opacity:.7">'+r.sub+'</div>';
+    const btn=document.createElement('button');
+    btn.className='btn';btn.style.cssText='margin-top:0;width:auto;padding:8px 14px;font-size:12px';
+    btn.textContent='売る';
+    btn.onclick=()=>{r.onSell();renderPortfolio(p);};
+    row.appendChild(info);row.appendChild(btn);
+    wrap.appendChild(row);
+  }
+}
+function sellHolding(p,kind,idx){
+  if(kind==='bond'){
+    p.bonds--;p.cash+=BOND_PRICE;
+    reasonsRound[p.i].push('債券売却+'+BOND_PRICE);
+  }else if(kind==='fund'){
+    p.funds--;p.cash+=fundPrice;
+    reasonsRound[p.i].push('投信売却+'+fundPrice);
+  }else{
+    const s=STOCKS[idx];
+    p.shares[idx]--;p.cash+=s.price;
+    reasonsRound[p.i].push(s.emoji+'売却+'+s.price);
+  }
+  beep(560,0.06,'triangle');vibrate(20);
+}
 /* ===== イベント適用 ===== */
 function drawEvent(cat,noMove){
   const table=EVENT_TABLES[cat];
@@ -1360,11 +1474,41 @@ function applyEvent(p,ev,depth){
   return L;
 }
 /* ===== ラウンド収支・順位発表（毎ラウンド。3/6/9/12月は決算収益も合算） ===== */
+/* ===== 市場の値動き（毎ラウンド1回。投信は微ドリフト、株は通常変動15%の確率でニュースへ差し替え） ===== */
+function updateMarket(){
+  fundPrice=Math.max(STOCK_PRICE_MIN,Math.round(fundPrice*(0.97+Math.random()*0.11)));
+  stockNewsLog=[];
+  for(const s of STOCKS){
+    const before=s.price;
+    if(Math.random()<0.15){
+      const news=STOCK_NEWS[Math.floor(Math.random()*STOCK_NEWS.length)];
+      s.price=Math.max(STOCK_PRICE_MIN,Math.round(s.price*news.m));
+      stockNewsLog.push({name:s.name,emoji:s.emoji,h:news.h,before,after:s.price});
+    }else{
+      s.price=Math.max(STOCK_PRICE_MIN,Math.round(s.price*(0.80+Math.random()*0.45)));
+    }
+  }
+  for(const p of pieces){
+    if(p.bonds>0){
+      const inc=p.bonds*BOND_COUPON;
+      p.cash+=inc;
+      reasonsRound[p.i].push('利息+'+inc);
+    }
+  }
+}
 function roundSummary(){
   clearBalloons();
   el('hint').classList.add('hidden');
+  updateMarket();
   const quarterly=roundNo%3===0;
   const lines=[];
+  lines.push('<b>📈 森の株式市場</b>');
+  for(const n of stockNewsLog){
+    const up=n.after>=n.before;
+    lines.push('<span style="color:'+(up?'#2e8b57':'#c04040')+'">'+(up?'📈':'🚨')+' '+n.emoji+n.name+'「'+n.h+'」'+n.before+'→'+n.after+'万</span>');
+  }
+  lines.push(STOCKS.map(s=>s.emoji+s.price+'万').join('　')+'　📊投信'+fundPrice+'万');
+  lines.push('<hr style="opacity:.3">');
   if(quarterly){
     lines.push('<b>💰 四半期決算！物件収益</b>');
     for(const p of pieces){
@@ -1405,7 +1549,7 @@ function roundSummary(){
   phase='summaryWait';
   beep(660,0.1,'triangle');setTimeout(()=>beep(880,0.1,'triangle'),110);setTimeout(()=>beep(1100,0.14,'triangle'),220);
   vibrate(70);
-  helpPop('summary','順位は「総資産」＝現金＋持っている物件のねだんで決まるのだ。物件を買って資産をふやすのだ！');
+  helpPop('summary','順位は「総資産」＝現金＋物件＋債券・投信・株のねだんで決まるのだ。資産をふやすのだ！');
 }
 function finishBoardRound(){
   roundNo++;
@@ -1438,12 +1582,16 @@ function showGameEnd(){
 function resetAll(){
   el('resultPop').style.display='none';
   el('slotPop').style.display='none';slotCtx=null;
+  el('holdPop').style.display='none';
   clearBalloons();
   for(const d of dice)if(!d.removed)removeDie(d);
   dice.length=0;
   for(const t of tiles){t.owner=null;if(t.type==='prop')t.price=200+((t.idx*7)%9)*50;updateTileOwnerVisual(t);}
-  for(const p of pieces){p.cash=START_CASH;p.pos=0;p.doubleNext=false;p.shieldRent=false;p.queue=[];p.hopFrom=null;p.y=0;p.plannedSteps=0;}
+  for(const p of pieces){p.cash=START_CASH;p.pos=0;p.doubleNext=false;p.shieldRent=false;p.queue=[];p.hopFrom=null;p.y=0;p.plannedSteps=0;p.bonds=0;p.funds=0;p.shares=[0,0,0,0,0];}
   spreadPieces();syncPieces();
+  fundPrice=FUND_INIT;
+  STOCKS.forEach((s,i)=>{s.price=STOCKS_INIT[i];});
+  stockNewsLog=[];
   roundNo=1;throwIdx=0;order=[0,1,2,3,4];moveOrder=[0,1,2,3,4];evDecks={work:[],news:[],hr:[]};
   prevRanks=null;seqIdx=0;chainReq=null;landCtx=null;gambleCtx=null;
   showTurn();
@@ -1529,7 +1677,7 @@ async function requestSensor(){
 }
 
 /* ===== 入力 ===== */
-const onUI=e=>e.target&&e.target.closest&&e.target.closest('#dbg,#dbgBtn,.overlay,#throwBtn,#tipPop');
+const onUI=e=>e.target&&e.target.closest&&e.target.closest('#dbg,#dbgBtn,.overlay,#throwBtn,#tipPop,#holdBtn,#holdPop');
 function bindInput(){
   el('throwBtn').onclick=()=>{
     if(phase!=='await'||mode!=='sensor')return;
@@ -1672,6 +1820,9 @@ function loop(){
   const onBoard=onBoardPhase();
   updateAimArrow(showAim&&!onBoard);
   updateLegend();
+  // もちものボタン: 投げる前(await)・保有がある本人の手番だけ表示
+  const curThrower=(!gambleCtx&&phase==='await'&&order[throwIdx]!=null)?pieces[order[throwIdx]]:null;
+  el('holdBtn').classList.toggle('hidden',!hasHoldings(curThrower));
 
   // カメラ（お椀は固定+シェイク、盤は追従lerp）
   let sx=0,sy=0;
@@ -1712,7 +1863,7 @@ function bindDbg(){
     for(const d of dice)if(!d.removed)removeDie(d);
     dice.length=0;throwIdx=0;
     clearBalloons();chainReq=null;landCtx=null;slotCtx=null;gambleCtx=null;
-    el('resultPop').style.display='none';el('slotPop').style.display='none';
+    el('resultPop').style.display='none';el('slotPop').style.display='none';el('holdPop').style.display='none';
     showTurn();beep(520,0.06);
   };
   el('tuneResetBtn').onclick=()=>{TUNE={...TUNE_DEF};saveTune();bindDbg();beep(440,0.06);};
@@ -1725,12 +1876,13 @@ function updateDbg(){
 
 /* ===== チュートリアル（タイトルから見返せる。初回は自動表示） ===== */
 const TUT_PAGES=[
-  {icon:'🏆',t:'ゲームのもくてき',b:'5社の社長で競う経営すごろく！<br>12ヶ月（12ラウンド）あそんで、<b>総資産（現金＋物件の価値）1位</b>の社長が年間MVPなのだ！'},
+  {icon:'🏆',t:'ゲームのもくてき',b:'5社の社長で競う経営すごろく！<br>12ヶ月（12ラウンド）あそんで、<b>総資産（現金＋物件＋債券・投信・株）1位</b>の社長が年間MVPなのだ！'},
   {icon:'🥣',t:'1ラウンドのながれ',b:'① 5社がじゅんばんに<b>お椀へサイコロを投げ入れる</b><br>② 全員の出目が確定<br>③ <b>ビリの会社から</b>じゅんばんに、出目のぶんだけ前へすすむ<br>④ 止まったマスの効果が発動<br>⑤ 収支と順位の発表！'},
   {icon:'📱',t:'サイコロの投げかた',b:'<b>センサー</b>：「投げる！」ボタン→スマホをかたむけて ねらい→<b>手首をくいっ！</b><br><b>指</b>：画面をひっぱって はなす<br><i>そっと投げ</i>＝手前に置く／<i>強く投げ</i>＝奥までころがる'},
   {icon:'💥',t:'弾き合いがアツい！',b:'投げたサイコロは<b>お椀に残る</b>。あとの人が当てると<b>相手の出目が転がり直る</b>！<br>画面上のパネルに各社の<b>出目と行き先</b>が出るので、<i>いい行き先の敵は弾いてジャマ</i>するのだ。投げ順はビリが最後＝ジャマし放題！<br>そのぶん<b>盤の移動はビリから</b>！先に空き物件を買えるチャンスがあるのだ。'},
-  {icon:'🏪',t:'マスのみかた',b:'🏪の<b>数字＝物件のねだん</b>。買うと自分の色になり、他社が止まると<b>使用料（ねだんの10%）</b>がもらえる<br>💼しごと・📰ニュース・🧑‍💼人材＝スロットでガチャ抽選！<br>🎰レジャー＝有馬記念かカジノスロットで勝負！　📊投資＝つぎのアップデートで遊べるようになるのだ<br>🏦＝現金の5%もらえる　📈＝TOB（他社の物件を1.5倍で強制買収）<br>Ｓ＝スタート（+50万）<br><i>まんなかの家や山は ただの かざりなのだ</i>'},
+  {icon:'🏪',t:'マスのみかた',b:'🏪の<b>数字＝物件のねだん</b>。買うと自分の色になり、他社が止まると<b>使用料（ねだんの10%）</b>がもらえる<br>💼しごと・📰ニュース・🧑‍💼人材＝スロットでガチャ抽選！<br>🎰レジャー＝有馬記念かカジノスロットで勝負！　📊投資＝債券・投信・仕手株が買える<br>🏦＝現金の5%もらえる　📈＝TOB（他社の物件を1.5倍で強制買収）<br>Ｓ＝スタート（+50万）<br><i>まんなかの家や山は ただの かざりなのだ</i>'},
   {icon:'💰',t:'決算と勝ちかた',b:'3・6・9・12月の終わりは<b>決算</b>！持っている物件のねだんの<b>18%が収益</b>になる<br>物件を買って、使用料と決算収益で<b>資産をふやす</b>のが勝ち筋。現金を使いすぎると何もできなくなるので注意なのだ！'},
+  {icon:'📊',t:'投資でひとやすみ',b:'📊投資マスでは<b>債券</b>（かたい・毎月+利息）・<b>投資信託</b>（じわじわ）・<b>仕手株</b>（一発逆転！乱高下）が買える<br>売るのはいつでもOK：画面すみの<b>「📊もちもの」</b>ボタンから、投げる前に売れるのだ。売り時をみきわめるのだ！'},
 ];
 let tutIdx=0;
 function renderTut(){
@@ -1776,6 +1928,8 @@ el('fingerBtn').onclick=()=>{
   showTurn();
 };
 el('buyYesBtn').onclick=()=>{if(phase==='landBuy')answerLandBuy(true);};
+el('holdBtn').onclick=()=>openPortfolio();
+el('holdCloseBtn').onclick=()=>{if(phase==='holdPop')closePortfolio();};
 el('buyNoBtn').onclick=()=>{if(phase==='landBuy')answerLandBuy(false);};
 el('tutBtn').onclick=()=>{beep(560,0.05);openTut();};
 el('tutNextBtn').onclick=()=>{beep(560,0.05);if(tutIdx>=TUT_PAGES.length-1){closeTut();return;}tutIdx++;renderTut();};
