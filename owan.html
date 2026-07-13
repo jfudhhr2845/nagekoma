@@ -107,7 +107,7 @@
       🚶 5社の出目が確定したら<b>すごろく盤へ</b>！全員いっせいに移動するのだ<br>
       🏪 空き物件は購入できる。他社の物件に止まると<b>使用料</b>。🎲マスは<b>イベント50種</b>！<br>
       💰 3・6・9・12月は<b>決算</b>で物件収益が入る。12ヶ月の総資産1位が年間MVP！<br>
-      🔁 投げ順は<b>資産ウェーバー順</b>（ビリが最後に投げる＝妨害チャンスで有利）
+      🔁 <b>投げ順</b>はビリが最後（妨害チャンス）／<b>盤の移動順</b>はビリが先頭（下克上チャンス）
     </div>
     <button class="btn" id="startBtn">📱 センサーで遊ぶ</button>
     <button class="btn sub2" id="fingerBtn">👆 指で遊ぶ（ひっぱりで方向と強さ）</button>
@@ -248,7 +248,8 @@ let mode=null;               // 'sensor' | 'finger'
 let phase='menu';            // menu|await|armed|moving|betweenThrows|roundResult
 let dice=[];                 // このラウンドに投げ込まれたサイコロ
 let roundNo=1,throwIdx=0;    // throwIdx: このラウンドで何人目の投げか
-let order=[0,1,2,3,4];       // 投げ順（毎ラウンド1つずつローテ。本番は資産ウェーバー順）
+let order=[0,1,2,3,4];       // 投げ順（総資産の多い順＝ビリが最後に投げる＝弾きチャンス）
+let moveOrder=[0,1,2,3,4];   // 盤の移動順（総資産の少ない順＝ビリから動ける＝下克上しやすく）
 let armTimer=0;
 let dragOn=false,dragSX=0,dragSY=0,dragPow=0;
 let aimAngle=0;              // 発射方向（0=お椀の奥へ真っ直ぐ、±で左右）
@@ -357,7 +358,7 @@ function updateLegend(){
   if(phase==='previewBoard'||phase==='await'||phase==='armed'||phase==='moving'||phase==='betweenThrows'){
     if(throwIdx<order.length)active=order[throwIdx];
   }else if(phase==='seqMove'||phase==='balloonWait'||phase==='landBuy'){
-    if(seqIdx<order.length)active=order[seqIdx];
+    if(seqIdx<moveOrder.length)active=moveOrder[seqIdx];
   }
   CHARS.forEach((ch,i)=>{
     const r=el('lrow'+i);if(r)r.classList.toggle('on',i===active);
@@ -409,8 +410,8 @@ let boardCamHome={x:0,y:25,z:15.5,lx:0,ly:0,lz:-0.6};
 /* 盤カメラ: 移動中はそのコマに寄って追従、それ以外は全景へ戻る */
 function updateBoardCam(dt){
   let tgt=boardCamHome;
-  if((phase==='seqMove'||phase==='balloonWait'||phase==='landBuy')&&seqIdx<order.length){
-    const p=pieces[order[seqIdx]];
+  if((phase==='seqMove'||phase==='balloonWait'||phase==='landBuy')&&seqIdx<moveOrder.length){
+    const p=pieces[moveOrder[seqIdx]];
     const fy=boardCamHome.y*0.52;
     tgt={x:p.x*0.55,y:fy,z:p.z*0.55+fy*0.75,lx:p.x*0.85,ly:0.4,lz:p.z*0.85};
   }else if(phase==='previewBoard'&&throwIdx<order.length){
@@ -975,6 +976,8 @@ function startBoardPhase(){
   el('turnB').classList.add('hidden');
   cashStart=pieces.map(p=>p.cash);
   reasonsRound=[[],[],[],[],[]];
+  // 盤の移動順はこのラウンドの間だけ固定：ビリから動ける（下克上しやすく）
+  moveOrder=[0,1,2,3,4].sort((a,b)=>assets(pieces[a])-assets(pieces[b]));
   // 出目2倍フラグはここで歩数に反映して消費（お椀の行き先チップ表示はフラグ有効中に計算済み）
   for(const p of pieces){
     const d=dice.find(x=>x.owner===p.i);
@@ -987,7 +990,7 @@ function startBoardPhase(){
   beginPlayerMove();
 }
 function beginPlayerMove(){
-  const p=pieces[order[seqIdx]];
+  const p=pieces[moveOrder[seqIdx]];
   p.queue=[];
   for(let k=1;k<=p.plannedSteps;k++)p.queue.push((p.pos+k)%tiles.length);
   p.hopFrom=null;
@@ -1002,7 +1005,7 @@ function beginPlayerMove(){
 function endPlayerMove(){
   clearBalloons();
   seqIdx++;fastFwd=false;
-  if(seqIdx>=order.length){boardMarker.visible=false;roundSummary();}
+  if(seqIdx>=moveOrder.length){boardMarker.visible=false;roundSummary();}
   else beginPlayerMove();
 }
 function chainMove(p,steps,cb){
@@ -1220,7 +1223,8 @@ function roundSummary(){
 function finishBoardRound(){
   roundNo++;
   if(roundNo>MAX_ROUNDS){showGameEnd();return;}
-  // ウェーバー順: 総資産1位が最初に投げ、最下位が最後（あと投げ有利の救済）
+  // 投げ順はウェーバー順のまま: 総資産1位が最初に投げ、最下位が最後（あと投げ＝弾きチャンスの救済）
+  // 盤の移動順はstartBoardPhase()でビリから順に組み直す
   order=[0,1,2,3,4].sort((a,b)=>assets(pieces[b])-assets(pieces[a]));
   backToBowl();
 }
@@ -1252,7 +1256,7 @@ function resetAll(){
   for(const t of tiles){t.owner=null;if(t.type==='prop')t.price=200+((t.idx*7)%9)*50;updateTileOwnerVisual(t);}
   for(const p of pieces){p.cash=START_CASH;p.pos=0;p.doubleNext=false;p.shieldRent=false;p.queue=[];p.hopFrom=null;p.y=0;p.plannedSteps=0;}
   spreadPieces();syncPieces();
-  roundNo=1;throwIdx=0;order=[0,1,2,3,4];evDeck=[];
+  roundNo=1;throwIdx=0;order=[0,1,2,3,4];moveOrder=[0,1,2,3,4];evDeck=[];
   prevRanks=null;seqIdx=0;chainReq=null;landCtx=null;
   showTurn();
 }
@@ -1484,8 +1488,8 @@ function loop(){
   camera.lookAt(0,0.3,-0.2);
   if(onBoard){
     updateBoardCam(dtRaw);
-    if(boardMarker&&boardMarker.visible&&seqIdx<order.length&&phase!=='previewBoard'){
-      const p=pieces[order[seqIdx]];
+    if(boardMarker&&boardMarker.visible&&seqIdx<moveOrder.length&&phase!=='previewBoard'){
+      const p=pieces[moveOrder[seqIdx]];
       boardMarker.position.set(p.x,2.0+Math.sin(now/280)*0.16,p.z);
     }else if(boardMarker&&boardMarker.visible&&phase==='previewBoard'){
       const p=pieces[order[throwIdx]];
@@ -1530,9 +1534,9 @@ function updateDbg(){
 /* ===== チュートリアル（タイトルから見返せる。初回は自動表示） ===== */
 const TUT_PAGES=[
   {icon:'🏆',t:'ゲームのもくてき',b:'5社の社長で競う経営すごろく！<br>12ヶ月（12ラウンド）あそんで、<b>総資産（現金＋物件の価値）1位</b>の社長が年間MVPなのだ！'},
-  {icon:'🥣',t:'1ラウンドのながれ',b:'① 5社がじゅんばんに<b>お椀へサイコロを投げ入れる</b><br>② 全員の出目が確定<br>③ すごろく盤を<b>出目のぶんだけ前へすすむ</b><br>④ 止まったマスの効果が発動<br>⑤ 収支と順位の発表！'},
+  {icon:'🥣',t:'1ラウンドのながれ',b:'① 5社がじゅんばんに<b>お椀へサイコロを投げ入れる</b><br>② 全員の出目が確定<br>③ <b>ビリの会社から</b>じゅんばんに、出目のぶんだけ前へすすむ<br>④ 止まったマスの効果が発動<br>⑤ 収支と順位の発表！'},
   {icon:'📱',t:'サイコロの投げかた',b:'<b>センサー</b>：「投げる！」ボタン→スマホをかたむけて ねらい→<b>手首をくいっ！</b><br><b>指</b>：画面をひっぱって はなす<br><i>そっと投げ</i>＝手前に置く／<i>強く投げ</i>＝奥までころがる'},
-  {icon:'💥',t:'弾き合いがアツい！',b:'投げたサイコロは<b>お椀に残る</b>。あとの人が当てると<b>相手の出目が転がり直る</b>！<br>画面上のパネルに各社の<b>出目と行き先</b>が出るので、<i>いい行き先の敵は弾いてジャマ</i>するのだ。投げ順はビリが最後＝ジャマし放題！'},
+  {icon:'💥',t:'弾き合いがアツい！',b:'投げたサイコロは<b>お椀に残る</b>。あとの人が当てると<b>相手の出目が転がり直る</b>！<br>画面上のパネルに各社の<b>出目と行き先</b>が出るので、<i>いい行き先の敵は弾いてジャマ</i>するのだ。投げ順はビリが最後＝ジャマし放題！<br>そのぶん<b>盤の移動はビリから</b>！先に空き物件を買えるチャンスがあるのだ。'},
   {icon:'🏪',t:'マスのみかた',b:'🏪の<b>数字＝物件のねだん</b>。買うと自分の色になり、他社が止まると<b>使用料（ねだんの10%）</b>がもらえる<br>🎲＝イベント（50種）　🏦＝現金の5%もらえる<br>📈＝TOB（他社の物件を1.5倍で強制買収）<br>Ｓ＝スタート（+50万）<br><i>まんなかの家や山は ただの かざりなのだ</i>'},
   {icon:'💰',t:'決算と勝ちかた',b:'3・6・9・12月の終わりは<b>決算</b>！持っている物件のねだんの<b>18%が収益</b>になる<br>物件を買って、使用料と決算収益で<b>資産をふやす</b>のが勝ち筋。現金を使いすぎると何もできなくなるので注意なのだ！'},
 ];
