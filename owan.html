@@ -58,6 +58,9 @@
   #holdCard{background:rgba(255,252,242,.97);border:3px solid var(--line);border-radius:20px;padding:18px 20px;text-align:center;max-width:88vw;max-height:78vh;overflow:auto;box-shadow:0 14px 40px rgba(0,0,0,.4);animation:popin .22s ease-out}
   #holdList{min-width:min(78vw,300px)}
   #dbgBtn{position:fixed;top:10px;right:10px;z-index:8;pointer-events:auto;cursor:pointer;width:36px;height:36px;border-radius:50%;border:2px solid var(--line);background:rgba(255,252,242,.92);color:var(--txt);font-weight:900;font-size:16px;font-family:inherit}
+  #autoBtn{position:fixed;top:10px;right:54px;z-index:8;pointer-events:auto;cursor:pointer;font-family:inherit;font-size:11px;font-weight:900;color:var(--txt);background:rgba(255,252,242,.92);border:2px solid var(--line);border-radius:999px;padding:0 12px;height:36px;white-space:nowrap}
+  #autoBtn.on{border-color:#4f9e6c;background:rgba(180,232,196,.95);color:#2e6b45}
+  #bannerTap{font-size:10.5px;font-weight:700;opacity:.55;margin-top:2px}
   #dbg{position:fixed;top:54px;right:8px;z-index:8;background:rgba(255,252,242,.96);border:2px solid var(--line);border-radius:14px;padding:10px 12px;width:240px;font-size:11px;font-weight:700;max-height:78vh;overflow:auto;pointer-events:auto}
   #dbg label{display:block;margin-top:7px}
   #dbg input[type=range]{width:100%}
@@ -82,11 +85,12 @@
 <div id="topbar" class="hud hidden"><div id="roundB">-</div><div id="turnB" class="hidden"><span id="turnName">-</span><span id="turnSub">-</span></div></div>
 <div id="legend" class="hud hidden"></div>
 <div id="hint" class="hud hidden">-</div>
-<div id="banner" class="hidden"><div id="bannerT">-</div><div id="bannerB">-</div></div>
+<div id="banner" class="hidden"><div id="bannerT">-</div><div id="bannerB">-</div><div id="bannerTap" class="hidden">タップでつぎへ</div></div>
 <div id="tipPop" class="hidden"><span>💡</span><span id="tipTxt">-</span><button class="ok" id="tipOk">OK</button></div>
 <div id="powerWrap" class="hud"><div id="powerFill"></div></div>
 <button id="throwBtn">🎲 投げる！</button>
 <button id="dbgBtn" class="hidden">⚙</button>
+<button id="autoBtn" class="hidden">▶️ オートOFF</button>
 <div id="dbg" class="hidden">
   <b>⚙ お椀・サイコロ調整</b>
   <label>スナップ発動しきい <span class="dv" id="v_spikeThr"></span><input type="range" id="s_spikeThr" min="40" max="220" step="5"></label>
@@ -175,6 +179,14 @@ const TUNE_DEF={
 let TUNE={...TUNE_DEF};
 try{const s=JSON.parse(localStorage.getItem('owan_tune')||'null');if(s)TUNE={...TUNE_DEF,...s};}catch(e){}
 let collectEach=false;   // 純チンチロ後退フラグ（投げるたび回収）
+let autoMode=false;      // OFF=吹き出し/スロットはタップ主導。ON=従来どおり自動送り
+try{autoMode=localStorage.getItem('owan_auto')==='1';}catch(e){}
+function setAutoMode(v){
+  autoMode=v;
+  try{localStorage.setItem('owan_auto',v?'1':'0');}catch(e){}
+  el('autoBtn').textContent=v?'⏩ オートON':'▶️ オートOFF';
+  el('autoBtn').classList.toggle('on',v);
+}
 
 /* ===== お椀ジオメトリ定数 ===== */
 const BOWL={
@@ -266,17 +278,27 @@ const WORK_EVENTS=[
   {name:'パソコンぜんぶ買い替え',fx:'cash',v:-110},
   {name:'レジ締めが合わない',fx:'cash',v:-20},
 ];
-const NEWS_EVENTS=[
+const NEWS_EVENTS=[   // 全体・業界ネタ。不動産に偏らないよう株・投信・債券連動ネタも入れる
   {name:'好景気の波！',fx:'allCash',v:100},
   {name:'政府の給付金',fx:'allCash',v:80},
   {name:'業界1位から技を盗む',fx:'stealRich',v:10},
   {name:'チャリティーに参加',fx:'payPoor',v:100},
   {name:'地価上昇！',fx:'propUp',v:20},
-  {name:'リフォーム大成功',fx:'propUp',v:30},
   {name:'地盤沈下…',fx:'propDown',v:20},
-  {name:'客足がとおのく',fx:'propDown',v:30},
   {name:'空き物件をタダでもらった！',fx:'freeProp',v:0},
   {name:'ボヤさわぎ！物件を手放す',fx:'loseProp',v:0},
+  {name:'全面高相場！株価いっせいに急騰',fx:'stockPct',v:15},
+  {name:'全面安相場…株価いっせいに急落',fx:'stockPct',v:-15},
+  {name:'投資信託が絶好調！',fx:'fundPct',v:10},
+  {name:'投資信託が伸び悩み…',fx:'fundPct',v:-8},
+  {name:'特別配当のお知らせ',fx:'bondBonus',v:10},
+  {name:'好決算ラッシュ！',fx:'allCash',v:60},
+  {name:'円安追い風！輸出好調',fx:'allCash',v:50},
+  {name:'円高で輸出苦戦…',fx:'allCash',v:-40},
+  {name:'業界再編のうわさで身構える',fx:'cashPct',v:-8},
+  {name:'好景気ボーナス',fx:'cashPct',v:12},
+  {name:'インフレで物価上昇…',fx:'cashPct',v:-6},
+  {name:'業界表彰式で話題に！',fx:'cash',v:70},
 ];
 const HR_EVENTS=[
   {name:'ヘッドハンティング成功！3マスすすむ',fx:'move',v:3},
@@ -289,9 +311,42 @@ const HR_EVENTS=[
   {name:'敏腕交渉人をやとった！次の使用料タダ',fx:'shieldRent',v:0},
   {name:'引きぬき合戦！だれかと場所が入れかわる',fx:'swap',v:0},
   {name:'引きぬき成功！各社から50万',fx:'stealAll',v:50},
+  {name:'新規事業がバズった！1マスすすむ',fx:'move',v:1},
+  {name:'ライバル社に人材を引き抜かれた…1マスもどる',fx:'move',v:-1},
+  {name:'名物社員が凱旋！5マスすすむ',fx:'move',v:5},
+  {name:'出張続きでヘトヘト…4マスもどる',fx:'move',v:-4},
+  {name:'スカウトの目にとまった！次の出目2倍',fx:'doubleNext',v:0},
 ];
-const EVENT_TABLES={work:WORK_EVENTS,news:NEWS_EVENTS,hr:HR_EVENTS};
-let evDecks={work:[],news:[],hr:[]};   // カテゴリ別シャッフル山札（かたより防止）
+const LEISURE_EVENTS=[   // レジャーマス。ゲーム枠(keiba/casinoSlot)＋フレーバー枠
+  {name:'🐎 有馬記念にちょうせん！',fx:'keiba',v:0},
+  {name:'🎰 カジノスロットで遊ぶ！',fx:'casinoSlot',v:0},
+  {name:'♨️ 温泉でリフレッシュ',fx:'cash',v:-40},
+  {name:'🍖 焼肉で豪遊した！',fx:'cash',v:-80},
+  {name:'🎁 福袋で大当たり！',fx:'cash',v:120},
+  {name:'🎪 屋台でぼったくられた…',fx:'cash',v:-30},
+  {name:'🛍️ フリマで掘り出し物！',fx:'cash',v:60},
+  {name:'🎣 釣り堀で入れ食い！',fx:'cash',v:40},
+  {name:'🎮 ゲーセンで散財…',fx:'cash',v:-20},
+  {name:'🎫 映画の招待券が当たった！',fx:'cash',v:30},
+  {name:'🎯 射的で豪華景品ゲット！',fx:'cash',v:50},
+  {name:'🏖️ のんびり休日',fx:'cash',v:10},
+];
+const INVEST_EVENTS=[   // 投資マス。オファー枠(offerBond/offerFund/offerStock)＋フレーバー枠
+  {name:'🏦 債券オファー',fx:'offerBond',v:0},
+  {name:'📊 投資信託オファー',fx:'offerFund',v:0},
+  {name:'🚀 仕手株オファー',fx:'offerStock',v:0},
+  {name:'💹 保有株が急騰！',fx:'stockPct',v:20},
+  {name:'📉 保有株が急落…',fx:'stockPct',v:-15},
+  {name:'📈 投資信託が絶好調！',fx:'fundPct',v:12},
+  {name:'📉 投資信託が伸び悩み…',fx:'fundPct',v:-8},
+  {name:'🎟️ 特別配当のお知らせ',fx:'bondBonus',v:15},
+  {name:'🧾 手数料がかかった…',fx:'cash',v:-15},
+  {name:'📰 相場情報をゲット！',fx:'cash',v:25},
+  {name:'🏷️ アドバイザーに相談',fx:'cash',v:35},
+  {name:'💼 資産運用セミナーに参加…',fx:'cash',v:-25},
+];
+const EVENT_TABLES={work:WORK_EVENTS,news:NEWS_EVENTS,hr:HR_EVENTS,leisure:LEISURE_EVENTS,invest:INVEST_EVENTS};
+let evDecks={work:[],news:[],hr:[],leisure:[],invest:[]};   // カテゴリ別シャッフル山札（かたより防止）
 
 /* ===== 状態 ===== */
 let scene,camera,renderer;
@@ -1104,9 +1159,15 @@ function showBalloon(p,title,body,good,next){
     sceneBoard.add(sp);balloonSps.push(sp);
   }
   balloonNext=next;balloonT=2.4;
+  el('bannerTap').classList.toggle('hidden',autoMode);
   phase='balloonWait';
   chime(good);
   updateLegend();
+}
+function advanceBalloon(){
+  const n=balloonNext;balloonNext=null;
+  clearBalloons();
+  if(n)n();
 }
 function clearBalloons(){
   for(const s of balloonSps){sceneBoard.remove(s);s.material.map.dispose();s.material.dispose();}
@@ -1148,21 +1209,20 @@ function landPlayer(p,depth){
       }
       showBalloon(p,'📈 TOBマス','資金不足…('+cost+'万必要)',false,()=>afterLand(p));
     }else showBalloon(p,'📈 TOBマス','買収できる物件がまだない',false,()=>afterLand(p));
-  }else if(t.type==='work'||t.type==='news'||t.type==='hr'){
+  }else if(t.type==='work'||t.type==='news'||t.type==='hr'||t.type==='leisure'||t.type==='invest'){
     const ev=drawEvent(t.type,depth>0);
     const{labels,idx}=reelLabelsFor(t.type,ev.name);
-    const catTitle={work:'💼 しごとガチャ',news:'📰 ニュースガチャ',hr:'🧑‍💼 人材ガチャ'}[t.type];
+    const catTitle={work:'💼 しごとガチャ',news:'📰 ニュースガチャ',hr:'🧑‍💼 人材ガチャ',leisure:'🎰 レジャーガチャ',invest:'📊 投資ガチャ'}[t.type];
     slotSpin(catTitle,[labels],[idx],()=>{
+      // ゲーム/商品オファー系fxはスロット停止後に専用ダイアログへ（現金効果ではないので showBalloon をスキップ）
+      const OFFER_FX={keiba:offerKeiba,casinoSlot:offerCasinoSlot,offerBond:offerBond,offerFund:offerFund,offerStock:offerStock};
+      if(OFFER_FX[ev.fx]){OFFER_FX[ev.fx](p);return;}
       const L=applyEvent(p,ev,depth);
       reasonsRound[p.i].push(TILE_STYLE[t.type].emoji+ev.name.slice(0,5));
       const body=L.join(' ');
       const good=!/-\d|もどる|手放|寄付/.test(body);
       showBalloon(p,TILE_STYLE[t.type].emoji+' '+ev.name,body,good,()=>afterLand(p));
     });
-  }else if(t.type==='leisure'){
-    landLeisure(p);
-  }else if(t.type==='invest'){
-    landInvest(p);
   }else{ // prop
     if(t.owner==null){
       if(p.cash>=t.price){
@@ -1237,12 +1297,20 @@ function answerLandBuy(yes){
     afterLand(p);
   }
 }
-/* ===== 🎰レジャーマス: 有馬記念（お椀を再利用した数字当て）・スロット ===== */
-function landLeisure(p){
-  const canKeiba=p.cash>=KEIBA_BET,canSlot=p.cash>=SLOT_BET;
-  menuPop('🎰 '+p.ch.emoji+p.ch.name+'　レジャーマス！なにであそぶ？',[
-    {label:'🐎 有馬記念にちょうせん',sub:canKeiba?('かけ金'+KEIBA_BET+'万・数字を当てたら'+KEIBA_PAY+'万！'):'お金がたりない…',disabled:!canKeiba,onPick:()=>startKeiba(p)},
-    {label:'🎰 スロットをまわす',sub:canSlot?('参加費'+SLOT_BET+'万・7がそろえば大当たり！'):'お金がたりない…',disabled:!canSlot,onPick:()=>playLeisureSlot(p)},
+/* ===== 🎰レジャーマス: 有馬記念（お椀を再利用した数字当て）・スロット =====
+   着地時はスロット抽選で「なにが起きるか」がまず決まる（landPlayerのOFFER_FX経由）。
+   ゲーム系(keiba/casinoSlot)だけ遊ぶ/やめるの確認を挟む。資金不足ならそのままお休みにする */
+function offerKeiba(p){
+  if(p.cash<KEIBA_BET){showBalloon(p,'🐎 有馬記念','資金不足でお休み…',false,()=>afterLand(p));return;}
+  menuPop('🐎 '+p.ch.emoji+p.ch.name+'　有馬記念にちょうせん！',[
+    {label:'🐎 ちょうせんする',sub:'かけ金'+KEIBA_BET+'万・数字を当てたら'+KEIBA_PAY+'万！',onPick:()=>startKeiba(p)},
+    {label:'やめておく',sub2:true,onPick:()=>{beep(300,0.06);afterLand(p);}},
+  ]);
+}
+function offerCasinoSlot(p){
+  if(p.cash<SLOT_BET){showBalloon(p,'🎰 カジノスロット','資金不足でお休み…',false,()=>afterLand(p));return;}
+  menuPop('🎰 '+p.ch.emoji+p.ch.name+'　カジノスロット！',[
+    {label:'🎰 まわす',sub:'参加費'+SLOT_BET+'万・7がそろえば大当たり！',onPick:()=>playLeisureSlot(p)},
     {label:'やめておく',sub2:true,onPick:()=>{beep(300,0.06);afterLand(p);}},
   ]);
 }
@@ -1304,13 +1372,28 @@ function playLeisureSlot(p){
     }
   });
 }
-/* ===== 📊投資マス: 債券・投資信託・仕手株（着地で1つだけ購入。売却は毎手番「もちもの」から） ===== */
-function landInvest(p){
-  menuPop('📊 '+p.ch.emoji+p.ch.name+'　投資マス！なにを買う？',[
-    {label:'🏦 債券を買う',sub:canAfford(p,BOND_PRICE)?(BOND_PRICE+'万・毎月+'+BOND_COUPON+'万の利息（かたい）'):'お金がたりない…',disabled:!canAfford(p,BOND_PRICE),onPick:()=>buyBond(p)},
-    {label:'📊 投資信託を買う',sub:canAfford(p,fundPrice)?('1口'+fundPrice+'万・じわじわ値上がり'):'お金がたりない…',disabled:!canAfford(p,fundPrice),onPick:()=>buyFund(p)},
-    {label:'🚀 仕手株を買う',sub:'一発逆転ねらい！（銘柄をえらぶ）',onPick:()=>menuPop('🚀 どの銘柄を買う？',
-      STOCKS.map((s,i)=>({label:s.emoji+' '+s.name,sub:canAfford(p,s.price)?('現在値'+s.price+'万'):'お金がたりない…',disabled:!canAfford(p,s.price),onPick:()=>buyStock(p,i)})))},
+/* ===== 📊投資マス: 債券・投資信託・仕手株（着地で1つだけ購入。売却は毎手番「もちもの」から） =====
+   着地時はスロット抽選で「どの商品のオファーか」が決まる（landPlayerのOFFER_FX経由）。資金不足ならお休みにする */
+function offerBond(p){
+  if(!canAfford(p,BOND_PRICE)){showBalloon(p,'🏦 債券オファー','資金不足で見送り…',false,()=>afterLand(p));return;}
+  menuPop('🏦 '+p.ch.emoji+p.ch.name+'　債券オファー！',[
+    {label:'🏦 買う',sub:BOND_PRICE+'万・毎月+'+BOND_COUPON+'万の利息（かたい）',onPick:()=>buyBond(p)},
+    {label:'やめておく',sub2:true,onPick:()=>{beep(300,0.06);afterLand(p);}},
+  ]);
+}
+function offerFund(p){
+  if(!canAfford(p,fundPrice)){showBalloon(p,'📊 投資信託オファー','資金不足で見送り…',false,()=>afterLand(p));return;}
+  menuPop('📊 '+p.ch.emoji+p.ch.name+'　投資信託オファー！',[
+    {label:'📊 買う',sub:'1口'+fundPrice+'万・じわじわ値上がり',onPick:()=>buyFund(p)},
+    {label:'やめておく',sub2:true,onPick:()=>{beep(300,0.06);afterLand(p);}},
+  ]);
+}
+function offerStock(p){
+  const i=Math.floor(Math.random()*STOCKS.length);
+  const s=STOCKS[i];
+  if(!canAfford(p,s.price)){showBalloon(p,'🚀 仕手株オファー','資金不足で見送り…',false,()=>afterLand(p));return;}
+  menuPop('🚀 '+p.ch.emoji+p.ch.name+'　'+s.emoji+s.name+' オファー！',[
+    {label:s.emoji+' 買う',sub:'現在値'+s.price+'万・一発逆転ねらい',onPick:()=>buyStock(p,i)},
     {label:'やめておく',sub2:true,onPick:()=>{beep(300,0.06);afterLand(p);}},
   ]);
 }
@@ -1414,20 +1497,33 @@ function slotSpin(title,reels,results,onDone){
   el('slotTitle').textContent=title;
   const wrap=el('slotReels');
   wrap.innerHTML=reels.map((labels,i)=>'<div class="slotReel" id="slotReel'+i+'">'+labels[0]+'</div>').join('');
-  const stopAt=reels.map((_,i)=>0.9+i*0.5);   // 左から順に止まる
-  slotCtx={reels,results,onDone,t:0,stopAt,stopped:reels.map(()=>false),tickAcc:reels.map(()=>0)};
+  const stopAt=reels.map((_,i)=>0.9+i*0.5);   // オートON時: 左から順に止まる
+  slotCtx={reels,results,onDone,t:0,stopAt,stopped:reels.map(()=>false),tickAcc:reels.map(()=>0),auto:autoMode};
   el('slotPop').style.display='flex';
+  el('slotTap').textContent=autoMode?'タップでスキップ':'タップでリールを止める';
   phase='slotSpin';
   beep(440,0.04);
 }
-function skipSlot(){
+function stopReel(i){
+  slotCtx.stopped[i]=true;
+  el('slotReel'+i).textContent=slotCtx.reels[i][slotCtx.results[i]];
+  beep(520+i*60,0.08,'triangle');vibrate(20);
+}
+function finishSlot(){
+  const cb=slotCtx.onDone;slotCtx=null;
+  setTimeout(()=>{el('slotPop').style.display='none';if(cb)cb();},550);
+}
+/* タップ操作: オートOFF時はタップのたびリールを1本ずつ止め、全部止まったらもう1タップで確定。
+   オートON時は従来どおり自動で順に止まるので、タップは全部まとめて即確定させるスキップとして働く */
+function tapSlot(){
   if(!slotCtx)return;
-  slotCtx.reels.forEach((labels,i)=>{
-    if(!slotCtx.stopped[i]){
-      slotCtx.stopped[i]=true;
-      el('slotReel'+i).textContent=labels[slotCtx.results[i]];
-    }
-  });
+  if(slotCtx.auto){
+    slotCtx.reels.forEach((_,i)=>{if(!slotCtx.stopped[i])stopReel(i);});
+    return;
+  }
+  const nextIdx=slotCtx.stopped.findIndex(s=>!s);
+  if(nextIdx!==-1)stopReel(nextIdx);
+  else finishSlot();
 }
 function stepSlot(dt){
   if(!slotCtx)return;
@@ -1435,10 +1531,8 @@ function stepSlot(dt){
   slotCtx.reels.forEach((labels,i)=>{
     if(slotCtx.stopped[i])return;
     slotCtx.tickAcc[i]+=dt;
-    if(slotCtx.t>=slotCtx.stopAt[i]){
-      slotCtx.stopped[i]=true;
-      el('slotReel'+i).textContent=labels[slotCtx.results[i]];
-      beep(520+i*60,0.08,'triangle');vibrate(20);
+    if(slotCtx.auto&&slotCtx.t>=slotCtx.stopAt[i]){
+      stopReel(i);
       return;
     }
     if(slotCtx.tickAcc[i]>0.06){
@@ -1446,10 +1540,7 @@ function stepSlot(dt){
       el('slotReel'+i).textContent=labels[Math.floor(Math.random()*labels.length)];
     }
   });
-  if(slotCtx.stopped.every(Boolean)){
-    const cb=slotCtx.onDone;slotCtx=null;
-    setTimeout(()=>{el('slotPop').style.display='none';if(cb)cb();},550);
-  }
+  if(slotCtx.auto&&slotCtx.stopped.every(Boolean))finishSlot();
 }
 function applyEvent(p,ev,depth){
   const L=[];
@@ -1470,6 +1561,9 @@ function applyEvent(p,ev,depth){
     case 'doubleNext':p.doubleNext=true;L.push('次のラウンドの出目が2倍！');break;
     case 'shieldRent':p.shieldRent=true;L.push('次にはらう使用料がタダになる！');break;
     case 'swap':{const o=others[Math.floor(Math.random()*others.length)];const tmp=p.pos;p.pos=o.pos;o.pos=tmp;spreadPieces();syncPieces();L.push(o.ch.name+'と場所が入れかわった！');break;}
+    case 'stockPct':for(const s of STOCKS)s.price=Math.max(STOCK_PRICE_MIN,Math.round(s.price*(1+ev.v/100)));L.push('株式市場ぜんたいが '+(ev.v>=0?'+':'')+ev.v+'%！');break;
+    case 'fundPct':fundPrice=Math.max(STOCK_PRICE_MIN,Math.round(fundPrice*(1+ev.v/100)));L.push('投資信託の基準価額 '+(ev.v>=0?'+':'')+ev.v+'%（→'+fundPrice+'万）');break;
+    case 'bondBonus':{if(p.bonds>0){const g=p.bonds*ev.v;p.cash+=g;L.push('債券'+p.bonds+'枚に特別配当 +'+g+'万！');}else{p.cash+=20;L.push('債券は持ってないので気分だけ (+20万)');}break;}
   }
   return L;
 }
@@ -1592,7 +1686,7 @@ function resetAll(){
   fundPrice=FUND_INIT;
   STOCKS.forEach((s,i)=>{s.price=STOCKS_INIT[i];});
   stockNewsLog=[];
-  roundNo=1;throwIdx=0;order=[0,1,2,3,4];moveOrder=[0,1,2,3,4];evDecks={work:[],news:[],hr:[]};
+  roundNo=1;throwIdx=0;order=[0,1,2,3,4];moveOrder=[0,1,2,3,4];evDecks={work:[],news:[],hr:[],leisure:[],invest:[]};
   prevRanks=null;seqIdx=0;chainReq=null;landCtx=null;gambleCtx=null;
   showTurn();
 }
@@ -1677,7 +1771,7 @@ async function requestSensor(){
 }
 
 /* ===== 入力 ===== */
-const onUI=e=>e.target&&e.target.closest&&e.target.closest('#dbg,#dbgBtn,.overlay,#throwBtn,#tipPop,#holdBtn,#holdPop');
+const onUI=e=>e.target&&e.target.closest&&e.target.closest('#dbg,#dbgBtn,#autoBtn,.overlay,#throwBtn,#tipPop,#holdBtn,#holdPop');
 function bindInput(){
   el('throwBtn').onclick=()=>{
     if(phase!=='await'||mode!=='sensor')return;
@@ -1692,8 +1786,8 @@ function bindInput(){
     if(phase==='roundResult'){startBoardPhase();return;}
     if(phase==='previewBoard'){endPreview();return;}
     if(phase==='seqMove'){fastFwd=true;return;}
-    if(phase==='slotSpin'){skipSlot();return;}   // タップで即結果表示へ
-    if(phase==='balloonWait'){balloonT=0;return;}   // タップで即つぎへ
+    if(phase==='slotSpin'){tapSlot();return;}   // タップでリールを1本ずつ止める（オートONなら一気に）
+    if(phase==='balloonWait'){advanceBalloon();return;}   // タップでつぎへ（オートONなら自動送りに任せる）
     if(phase==='summaryWait'){finishBoardRound();return;}
     if(phase==='gameEnd'){resetAll();return;}
     if(phase!=='await'||mode!=='finger')return;
@@ -1782,11 +1876,9 @@ function loop(){
     syncPieces();
     moveTimeout=0;
   }else if(phase==='balloonWait'){
-    balloonT-=dtRaw*(fastFwd?3:1);
-    if(balloonT<=0){
-      const n=balloonNext;balloonNext=null;
-      clearBalloons();
-      if(n)n();
+    if(autoMode){   // オートON時のみ自動送り。OFF時はタップ待ち（advanceBalloon）
+      balloonT-=dtRaw*(fastFwd?3:1);
+      if(balloonT<=0)advanceBalloon();
     }
     moveTimeout=0;
   }else if(phase==='slotSpin'){
@@ -1859,6 +1951,7 @@ function bindDbg(){
   }
   el('c_collect').onchange=()=>{collectEach=el('c_collect').checked;};
   el('dbgBtn').onclick=()=>el('dbg').classList.toggle('hidden');
+  el('autoBtn').onclick=()=>{setAutoMode(!autoMode);beep(460,0.05);};
   el('resetBtn').onclick=()=>{
     for(const d of dice)if(!d.removed)removeDie(d);
     dice.length=0;throwIdx=0;
@@ -1919,12 +2012,14 @@ el('startBtn').onclick=async()=>{
   mode='sensor';
   el('start').classList.add('hidden');
   el('dbgBtn').classList.remove('hidden');
+  el('autoBtn').classList.remove('hidden');setAutoMode(autoMode);
   showTurn();
 };
 el('fingerBtn').onclick=()=>{
   beep(440,0.05);mode='finger';
   el('start').classList.add('hidden');
   el('dbgBtn').classList.remove('hidden');
+  el('autoBtn').classList.remove('hidden');setAutoMode(autoMode);
   showTurn();
 };
 el('buyYesBtn').onclick=()=>{if(phase==='landBuy')answerLandBuy(true);};
