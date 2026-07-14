@@ -15,7 +15,7 @@
   canvas{display:block}
   .hud{position:fixed;pointer-events:none;z-index:6}
   /* 上=情報ゾーン（トップバー+5社チップ横並び）、中央=お椀/盤（遮蔽物なし）、下=操作ゾーン */
-  #topbar{position:fixed;top:0;left:0;right:0;z-index:6;pointer-events:none;background:rgba(255,252,242,.94);border-bottom:2px solid var(--line);padding:5px 52px 5px 10px;text-align:center;box-shadow:0 3px 10px rgba(0,0,0,.2)}
+  #topbar{position:fixed;top:0;left:0;right:0;z-index:6;pointer-events:none;background:rgba(255,252,242,.94);border-bottom:2px solid var(--line);padding:5px 100px 5px 10px;text-align:center;box-shadow:0 3px 10px rgba(0,0,0,.2)}
   #roundB{font-size:11px;font-weight:900;opacity:.8}
   #turnB{margin-top:1px}
   #turnName{font-size:17px;font-weight:900}
@@ -48,10 +48,24 @@
   #resultS{font-size:14px;font-weight:700;line-height:2.0;opacity:.9;text-align:left}
   #resultTap{font-size:11px;font-weight:700;opacity:.5;margin-top:10px}
   #slotPop{position:fixed;inset:0;z-index:15;display:none;align-items:center;justify-content:center;pointer-events:auto;background:rgba(20,16,10,.55)}
-  #slotCard{background:linear-gradient(165deg,#3a2e20,#241c14);border:4px solid #d8a848;border-radius:20px;padding:20px 22px;text-align:center;box-shadow:0 16px 40px rgba(0,0,0,.5);animation:popin .22s ease-out}
+  #slotCard{background:linear-gradient(165deg,#3a2e20,#241c14);border:4px solid #d8a848;border-radius:20px;padding:20px 22px;text-align:center;box-shadow:0 16px 40px rgba(0,0,0,.5);animation:popin .22s ease-out;transition:box-shadow .3s}
+  #slotCard.jackpot{animation:popin .22s ease-out,jackpotPulse .5s ease-in-out 3}
+  @keyframes jackpotPulse{0%,100%{box-shadow:0 16px 40px rgba(0,0,0,.5),0 0 20px 4px rgba(255,214,110,.5)}50%{box-shadow:0 16px 40px rgba(0,0,0,.5),0 0 60px 18px rgba(255,214,110,.95)}}
   #slotTitle{font-size:16px;font-weight:900;color:#ffe6a0;margin-bottom:10px}
   #slotReels{display:flex;gap:8px;justify-content:center}
-  .slotReel{background:#fffdf4;border:3px solid #b8860b;border-radius:10px;min-width:64px;max-width:150px;padding:10px 8px;font-size:13px;font-weight:900;color:#3a2f22;box-shadow:inset 0 3px 8px rgba(0,0,0,.2)}
+  .slotReel{position:relative;background:#fffdf4;border:3px solid #b8860b;border-radius:10px;overflow:hidden;box-shadow:inset 0 3px 10px rgba(0,0,0,.35)}
+  .slotReel.short{width:66px;height:168px}
+  .slotReel.long{width:180px;height:62px}
+  .slotStrip{display:flex;flex-direction:column;will-change:transform}
+  .slotRow{display:flex;align-items:center;justify-content:center;text-align:center;font-weight:900;color:#3a2f22;padding:0 6px;line-height:1.25;box-sizing:border-box}
+  .slotReel.short .slotRow{height:56px;font-size:30px}
+  .slotReel.long .slotRow{height:62px;font-size:12.5px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+  .slotReel .payline{position:absolute;left:2px;right:2px;top:50%;height:2px;background:rgba(184,134,11,.55);transform:translateY(-1px);pointer-events:none;z-index:3}
+  .slotReel.long .payline{display:none}
+  .slotReel::before,.slotReel::after{content:'';position:absolute;left:0;right:0;height:16px;z-index:2;pointer-events:none}
+  .slotReel::before{top:0;background:linear-gradient(to bottom,#fffdf4,rgba(255,253,244,0))}
+  .slotReel::after{bottom:0;background:linear-gradient(to top,#fffdf4,rgba(255,253,244,0))}
+  .slotStrip.spinning .slotRow{filter:blur(.5px);opacity:.9}
   #slotTap{font-size:11px;font-weight:700;color:#e8d8b0;opacity:.7;margin-top:12px}
   #holdBtn{position:fixed;bottom:26px;left:12px;z-index:7;pointer-events:auto;cursor:pointer;font-family:inherit;font-size:12px;font-weight:900;color:#2e6b45;background:rgba(255,252,242,.94);border:2px solid #4f9e6c;border-radius:999px;padding:10px 14px;box-shadow:0 6px 16px rgba(0,0,0,.25)}
   #holdPop{position:fixed;inset:0;z-index:15;display:none;align-items:center;justify-content:center;pointer-events:auto;background:rgba(0,0,0,.3)}
@@ -1160,6 +1174,9 @@ function showBalloon(p,title,body,good,next){
   }
   balloonNext=next;balloonT=2.4;
   el('bannerTap').classList.toggle('hidden',autoMode);
+  // 吹き出しの上に#hint（Nマスすすむ！等の古い案内）や#tipPop（解説ポップ）が重なるのを防ぐ
+  el('hint').classList.add('hidden');
+  clearTimeout(tipTimer);hideTip();
   phase='balloonWait';
   chime(good);
   updateLegend();
@@ -1370,7 +1387,7 @@ function playLeisureSlot(p){
     }else{
       showBalloon(p,'🎰 スロット',label+' 参加費'+SLOT_BET+'万のみ…',false,()=>afterLand(p));
     }
-  });
+  },{jackpot:payout===300});
 }
 /* ===== 📊投資マス: 債券・投資信託・仕手株（着地で1つだけ購入。売却は毎手番「もちもの」から） =====
    着地時はスロット抽選で「どの商品のオファーか」が決まる（landPlayerのOFFER_FX経由）。資金不足ならお休みにする */
@@ -1490,55 +1507,110 @@ function reelLabelsFor(cat,targetName){
   return{labels,idx};
 }
 /* ===== スロット抽選演出（共通コンポーネント。イベント抽選とレジャーマスのスロットで共用） =====
-   reels: [ [ラベル配列], ... ]（リールごと）／results: 各リールの停止index（結果は先に決めておく） */
+   reels: [ [ラベル配列], ... ]（リールごと）／results: 各リールの停止index（結果は先に決めておく）
+   リールは絵柄1個ぶんの高さを無限ループでスクロールさせる「pos（スクロール量。単位=シンボル個数）」方式。
+   自由回転中はpos を一定速度で増やすだけ、停止指示が来たら「目標シンボルがちょうどペイラインに来る位置」まで
+   減速しながら進める（forwardのみ・巻き戻さない）ので、実物のリールが流れて止まる感覚になる */
+const REEL_SPIN_SPEED=9.5;   // 自由回転の速さ（シンボル/秒）
+const REEL_LAND_DUR=0.62;    // 減速して止まるまでの秒数
+const REEL_LAND_LOOPS=2;     // 停止指示のあと最低もう何周ぶん流してから止まるか（減速感の演出）
+function reelIsShort(labels){return labels.every(l=>[...l].length<=2);}   // 絵柄(絵文字)か長文かで見た目を切替
 let slotCtx=null;
-function slotSpin(title,reels,results,onDone){
+function slotSpin(title,reels,results,onDone,opts){
   clearBalloons();
   el('slotTitle').textContent=title;
   const wrap=el('slotReels');
-  wrap.innerHTML=reels.map((labels,i)=>'<div class="slotReel" id="slotReel'+i+'">'+labels[0]+'</div>').join('');
+  wrap.innerHTML=reels.map((labels,i)=>{
+    const short=reelIsShort(labels);
+    const rows=short?3:1;
+    const rowsHtml=Array.from({length:rows},(_,r)=>'<div class="slotRow" id="slotRow'+i+'_'+r+'"></div>').join('');
+    return '<div class="slotReel '+(short?'short':'long')+'" id="slotReel'+i+'"><div class="payline"></div>'
+      +'<div class="slotStrip spinning" id="slotStrip'+i+'">'+rowsHtml+'</div></div>';
+  }).join('');
   const stopAt=reels.map((_,i)=>0.9+i*0.5);   // オートON時: 左から順に止まる
-  slotCtx={reels,results,onDone,t:0,stopAt,stopped:reels.map(()=>false),tickAcc:reels.map(()=>0),auto:autoMode};
+  slotCtx={
+    reels,results,onDone,t:0,stopAt,auto:autoMode,jackpot:!!(opts&&opts.jackpot),
+    stopped:reels.map(()=>false),
+    landing:reels.map(()=>null),
+    pos:reels.map(()=>Math.random()*reels[0].length),   // 開始位置をずらして各リールが違う絵柄から始まるように
+    rows:reels.map(labels=>reelIsShort(labels)?3:1),
+  };
+  slotCtx.reels.forEach((_,i)=>renderReel(i));
   el('slotPop').style.display='flex';
   el('slotTap').textContent=autoMode?'タップでスキップ':'タップでリールを止める';
   phase='slotSpin';
   beep(440,0.04);
 }
-function stopReel(i){
-  slotCtx.stopped[i]=true;
-  el('slotReel'+i).textContent=slotCtx.reels[i][slotCtx.results[i]];
-  beep(520+i*60,0.08,'triangle');vibrate(20);
+/* pos（浮動小数のスクロール量）から各行のテキストと端数ぶんのtranslateYを描画する */
+function renderReel(i){
+  const labels=slotCtx.reels[i],len=labels.length,rows=slotCtx.rows[i];
+  const p=slotCtx.pos[i];
+  const base=Math.floor(p),frac=p-base;
+  const strip=el('slotStrip'+i);
+  if(!strip)return;
+  for(let r=0;r<rows;r++){
+    const idx=(((base+r)%len)+len)%len;
+    el('slotRow'+i+'_'+r).textContent=labels[idx];
+  }
+  strip.style.transform='translateY(-'+(frac*(rows===3?56:62))+'px)';
+}
+/* 現在位置cur以上で「targetIdxがペイライン（rows===3ならmiddle行、rows===1ならその行）に来る」
+   最小の整数pos を求め、そこからさらにREEL_LAND_LOOPS周ぶん進めた値を着地位置にする（必ず前方向） */
+function landPos(i){
+  const labels=slotCtx.reels[i],len=labels.length,rows=slotCtx.rows[i];
+  const paylineRow=rows===3?1:0;
+  const wantBase=(((slotCtx.results[i]-paylineRow)%len)+len)%len;
+  const cur=slotCtx.pos[i];
+  let to=Math.ceil((cur-wantBase)/len)*len+wantBase;
+  if(to<cur)to+=len;
+  return to+len*REEL_LAND_LOOPS;
+}
+function triggerLand(i){
+  if(!slotCtx||slotCtx.stopped[i]||slotCtx.landing[i])return;
+  slotCtx.landing[i]={from:slotCtx.pos[i],to:landPos(i),t0:slotCtx.t,dur:REEL_LAND_DUR};
+  el('slotStrip'+i).classList.remove('spinning');
 }
 function finishSlot(){
-  const cb=slotCtx.onDone;slotCtx=null;
-  setTimeout(()=>{el('slotPop').style.display='none';if(cb)cb();},550);
+  const cb=slotCtx.onDone,jackpot=slotCtx.jackpot;
+  slotCtx=null;
+  if(jackpot){
+    el('slotCard').classList.add('jackpot');
+    setTimeout(()=>el('slotCard').classList.remove('jackpot'),1600);
+  }
+  setTimeout(()=>{el('slotPop').style.display='none';if(cb)cb();},jackpot?900:400);
 }
-/* タップ操作: オートOFF時はタップのたびリールを1本ずつ止め、全部止まったらもう1タップで確定。
-   オートON時は従来どおり自動で順に止まるので、タップは全部まとめて即確定させるスキップとして働く */
+/* タップ操作: オートOFF時はタップのたびリールを1本ずつ「止める指示」を出し（実際は減速して少し後に止まる）、
+   全部止まったらもう1タップで確定。オートON時は自動で順に止まるので、タップは全部まとめて減速開始させるスキップとして働く */
 function tapSlot(){
   if(!slotCtx)return;
   if(slotCtx.auto){
-    slotCtx.reels.forEach((_,i)=>{if(!slotCtx.stopped[i])stopReel(i);});
+    slotCtx.reels.forEach((_,i)=>triggerLand(i));
     return;
   }
-  const nextIdx=slotCtx.stopped.findIndex(s=>!s);
-  if(nextIdx!==-1)stopReel(nextIdx);
-  else finishSlot();
+  const nextIdx=slotCtx.stopped.findIndex((s,i)=>!s&&!slotCtx.landing[i]);
+  if(nextIdx!==-1)triggerLand(nextIdx);
+  else if(slotCtx.stopped.every(Boolean))finishSlot();
 }
 function stepSlot(dt){
   if(!slotCtx)return;
   slotCtx.t+=dt;
   slotCtx.reels.forEach((labels,i)=>{
     if(slotCtx.stopped[i])return;
-    slotCtx.tickAcc[i]+=dt;
-    if(slotCtx.auto&&slotCtx.t>=slotCtx.stopAt[i]){
-      stopReel(i);
-      return;
+    const land=slotCtx.landing[i];
+    if(land){
+      const k=Math.min(1,(slotCtx.t-land.t0)/land.dur);
+      const e=1-Math.pow(1-k,3);   // ease-out：勢いよく流れて最後にすっと止まる
+      slotCtx.pos[i]=land.from+(land.to-land.from)*e;
+      if(k>=1){
+        slotCtx.pos[i]=land.to;
+        slotCtx.stopped[i]=true;slotCtx.landing[i]=null;
+        beep(520+i*60,0.08,'triangle');vibrate(20);
+      }
+    }else{
+      slotCtx.pos[i]=(slotCtx.pos[i]+REEL_SPIN_SPEED*dt)%labels.length;
+      if(slotCtx.auto&&slotCtx.t>=slotCtx.stopAt[i])triggerLand(i);
     }
-    if(slotCtx.tickAcc[i]>0.06){
-      slotCtx.tickAcc[i]=0;
-      el('slotReel'+i).textContent=labels[Math.floor(Math.random()*labels.length)];
-    }
+    renderReel(i);
   });
   if(slotCtx.auto&&slotCtx.stopped.every(Boolean))finishSlot();
 }
@@ -1675,7 +1747,7 @@ function showGameEnd(){
 }
 function resetAll(){
   el('resultPop').style.display='none';
-  el('slotPop').style.display='none';slotCtx=null;
+  el('slotPop').style.display='none';el('slotCard').classList.remove('jackpot');slotCtx=null;
   el('holdPop').style.display='none';
   clearBalloons();
   for(const d of dice)if(!d.removed)removeDie(d);
@@ -1956,7 +2028,7 @@ function bindDbg(){
     for(const d of dice)if(!d.removed)removeDie(d);
     dice.length=0;throwIdx=0;
     clearBalloons();chainReq=null;landCtx=null;slotCtx=null;gambleCtx=null;
-    el('resultPop').style.display='none';el('slotPop').style.display='none';el('holdPop').style.display='none';
+    el('resultPop').style.display='none';el('slotPop').style.display='none';el('slotCard').classList.remove('jackpot');el('holdPop').style.display='none';
     showTurn();beep(520,0.06);
   };
   el('tuneResetBtn').onclick=()=>{TUNE={...TUNE_DEF};saveTune();bindDbg();beep(440,0.06);};
