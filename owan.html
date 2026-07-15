@@ -59,7 +59,7 @@
   .slotStrip{display:flex;flex-direction:column;will-change:transform}
   .slotRow{display:flex;align-items:center;justify-content:center;text-align:center;font-weight:900;color:#3a2f22;padding:0 6px;line-height:1.25;box-sizing:border-box}
   .slotReel.short .slotRow{height:56px;font-size:30px}
-  .slotReel.long .slotRow{height:62px;font-size:12.5px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+  .slotReel.long .slotRow{height:62px;font-size:12.5px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;-webkit-box-pack:center;-webkit-box-align:center}
   .slotReel .payline{position:absolute;left:2px;right:2px;top:50%;height:2px;background:rgba(184,134,11,.55);transform:translateY(-1px);pointer-events:none;z-index:3}
   .slotReel.long .payline{display:none}
   .slotReel::before,.slotReel::after{content:'';position:absolute;left:0;right:0;height:16px;z-index:2;pointer-events:none}
@@ -1511,10 +1511,13 @@ function reelLabelsFor(cat,targetName){
    リールは絵柄1個ぶんの高さを無限ループでスクロールさせる「pos（スクロール量。単位=シンボル個数）」方式。
    自由回転中はpos を一定速度で増やすだけ、停止指示が来たら「目標シンボルがちょうどペイラインに来る位置」まで
    減速しながら進める（forwardのみ・巻き戻さない）ので、実物のリールが流れて止まる感覚になる */
-const REEL_SPIN_SPEED=9.5;   // 自由回転の速さ（シンボル/秒）
-const REEL_LAND_DUR=0.62;    // 減速して止まるまでの秒数
-const REEL_LAND_LOOPS=2;     // 停止指示のあと最低もう何周ぶん流してから止まるか（減速感の演出）
-function reelIsShort(labels){return labels.every(l=>[...l].length<=2);}   // 絵柄(絵文字)か長文かで見た目を切替
+const REEL_SPIN_SPEED=3.2;   // 自由回転の速さ（シンボル/秒）
+const REEL_LAND_DUR=0.7;     // 減速して止まるまでの秒数
+const REEL_LAND_LOOPS=1;     // 停止指示のあと最低もう何周ぶん流してから止まるか（減速感の演出）
+const graphemeSeg=(typeof Intl!=='undefined'&&Intl.Segmenter)?new Intl.Segmenter():null;
+function graphemeLen(s){return graphemeSeg?[...graphemeSeg.segment(s)].length:[...s].length;}
+// 絵柄(絵文字)か長文かで見た目を切替。'7️⃣'等の合成絵文字はコードポイント数では数え間違えるため書記素単位で数える
+function reelIsShort(labels){return labels.every(l=>graphemeLen(l)<=1);}
 let slotCtx=null;
 function slotSpin(title,reels,results,onDone,opts){
   clearBalloons();
@@ -1523,7 +1526,8 @@ function slotSpin(title,reels,results,onDone,opts){
   wrap.innerHTML=reels.map((labels,i)=>{
     const short=reelIsShort(labels);
     const rows=short?3:1;
-    const rowsHtml=Array.from({length:rows},(_,r)=>'<div class="slotRow" id="slotRow'+i+'_'+r+'"></div>').join('');
+    // 窓に見える行数(rows)+1本ぶんDOMを作る。最後の1本は「下から滑り込んでくる次の絵柄」用のバッファ
+    const rowsHtml=Array.from({length:rows+1},(_,r)=>'<div class="slotRow" id="slotRow'+i+'_'+r+'"></div>').join('');
     return '<div class="slotReel '+(short?'short':'long')+'" id="slotReel'+i+'"><div class="payline"></div>'
       +'<div class="slotStrip spinning" id="slotStrip'+i+'">'+rowsHtml+'</div></div>';
   }).join('');
@@ -1532,7 +1536,7 @@ function slotSpin(title,reels,results,onDone,opts){
     reels,results,onDone,t:0,stopAt,auto:autoMode,jackpot:!!(opts&&opts.jackpot),
     stopped:reels.map(()=>false),
     landing:reels.map(()=>null),
-    pos:reels.map(()=>Math.random()*reels[0].length),   // 開始位置をずらして各リールが違う絵柄から始まるように
+    pos:reels.map(labels=>Math.random()*labels.length),   // 開始位置をずらして各リールが違う絵柄から始まるように
     rows:reels.map(labels=>reelIsShort(labels)?3:1),
   };
   slotCtx.reels.forEach((_,i)=>renderReel(i));
@@ -1548,7 +1552,7 @@ function renderReel(i){
   const base=Math.floor(p),frac=p-base;
   const strip=el('slotStrip'+i);
   if(!strip)return;
-  for(let r=0;r<rows;r++){
+  for(let r=0;r<=rows;r++){   // +1本のバッファ行ぶんも埋める（下から滑り込む絵柄）
     const idx=(((base+r)%len)+len)%len;
     el('slotRow'+i+'_'+r).textContent=labels[idx];
   }
